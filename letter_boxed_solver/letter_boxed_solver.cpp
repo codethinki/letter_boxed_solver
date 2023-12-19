@@ -3,16 +3,14 @@
 #include <assert.h>
 #include<fstream>
 #include <iostream>
-#include <span>
 #include<thread>
 #include <omp.h>
-#include <unordered_map>
 #include <vector>
 
 #undef PREPARE_WORD_LIST
 
 constexpr uint32_t MIN_WORDS = 1;
-constexpr uint32_t MAX_WORDS = 3;
+constexpr uint32_t MAX_WORDS = 2;
 constexpr uint32_t CHARS_PER_SIDE = 3;
 constexpr uint32_t SIDES = 4;
 constexpr uint32_t CHARS = SIDES * CHARS_PER_SIDE;
@@ -125,56 +123,50 @@ vector<string> loadDictionaryFromWordlist(const string_view dictionary_path, con
  * \param offsets offset, offset_max in validWords list
  * \return index of the offset that needs to be updated -> offsets.size() = no update required
  */
-inline uint32_t nextOffset(vector<pair<uint32_t, uint32_t>>& offsets) {
-	//offset[0] is fixed
-	for(int i = offsets.size() - 1; i >= 1; --i) {
-		offsets[i].first += 1;
-		if(offsets[i].first < offsets[i].second) return i + 1;
-	}
+inline uint32_t nextOffset(vector<uint32_t>& offsets, const vector<string_view>& dictionary) {
+	// >= 1 cuz offset[0] is fixed
+
 	return 0;
 }
-inline void nextOffsetSet(const int first_update, vector<pair<uint32_t, uint32_t>>& offsets,
-	unordered_map<char, uint32_t> char_entry_map, const array<uint32_t, CHARS + 1>& dictionary_entries, const vector<string_view>& dictionary) {
-	assert(first_update > 0 && "first update cannot be < 1");
-	for(int i = first_update; i < offsets.size(); i++) {
-		const int lastCharIndex = char_entry_map[dictionary[offsets[i - 1].first].back()];
-		offsets[i].first = dictionary_entries[lastCharIndex];
-		offsets[i].second = dictionary_entries[lastCharIndex + 1];
-	}
 
-}
-
-vector<string> calcFixedSizeSolutions(const int word_count, const string_view sorted_valid_chars, const unordered_map<char, uint32_t>& char_entry_map,
-	const array<uint32_t, CHARS + 1>& dictionary_entries, const vector<string_view>& dictionary) {
+vector<string> calcFixedSizeSolutions(const int word_count, const string_view sorted_valid_chars,
+	const array<uint32_t, UCHAR_MAX>& dictionary_entries, const vector<string_view>& dictionary) {
 	vector<string> solutions{};
 
-#pragma omp parallel for shared(char_entry_map, dictionary_entries)
+#pragma omp parallel for shared(dictionary_entries)
 	for(int i = 0; i < dictionary.size(); i++) {
-		vector<pair<uint32_t, uint32_t>> offsets(word_count);
+		vector<uint32_t> offsets(word_count);
 		//set the first offset based on the current fixed word
-		offsets[0].first = i;
-		offsets[0].second = dictionary.size();
+		offsets[0] = i;
 
-		int firstSetUpdate = 1;
-		while(firstSetUpdate) {
-			nextOffsetSet(firstSetUpdate, offsets, char_entry_map, dictionary_entries, dictionary);
+		int setUpdateBegin = 1;
+		while(setUpdateBegin) {
+			//update offset sets
+			for (int k = setUpdateBegin; k < offsets.size(); k++) offsets[k] = dictionary_entries[dictionary[offsets[k - 1]].back()];
 
-			string solution = "";
-			for(int k = 0; k < offsets.size(); k++) solution += dictionary[offsets[k].first];
-			bool valid = true;
-			for(int k = 0; valid && k < sorted_valid_chars.size(); k++) valid = solution.contains(sorted_valid_chars[k]);
+			do {
+				string solution = "";
+				for (int k = 0; k < offsets.size(); k++) solution += dictionary[offsets[k]];
+				bool valid = true;
+				for (int k = 0; valid && k < sorted_valid_chars.size(); k++) valid = solution.contains(sorted_valid_chars[k]);
 
-			if(valid) {
-				solution = "";
-				for(int k = 0; k < offsets.size(); k++) {
-					solution += dictionary[offsets[k].first];
-					solution += ", ";
-				}
+				if (valid) {
+					solution = "";
+					for (int k = 0; k < offsets.size(); k++) {
+						solution += dictionary[offsets[k]];
+						solution += ", ";
+					}
 #pragma omp critical
-				solutions.push_back(solution.substr(0, solution.size() - 2));
-			}
+					solutions.push_back(solution.substr(0, solution.size() - 2));
+				}
+				offsets.back() += 1;
+			} while (offsets.back() < dictionary.size() && dictionary[offsets.back()][0] == dictionary[offsets.back() - 1][0]);
 
-			firstSetUpdate = nextOffset(offsets);
+			for (int k = offsets.size() - 2; k >= 1; --k) {
+				offsets[k] += 1;
+				if (dictionary[offsets[k - 1]][0] == dictionary[offsets[k]][0]) setUpdateBegin = k + 1;
+			}
+			setUpdateBegin = 0;
 		}
 	}
 	return solutions;
@@ -182,15 +174,13 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
 
 vector<string> calcBestSolutions(const string_view sorted_valid_chars, const vector<string_view>& dictionary) {
 	vector<string> solutions{};
-	unordered_map<char, uint32_t> charEntryMap{};
-	for (int i = 0; i < sorted_valid_chars.size(); i++) charEntryMap[sorted_valid_chars[i]] = i;
-	const array<uint32_t, CHARS + 1> dictionaryEntries = [sorted_valid_chars, dictionary]() {
-		array<uint32_t, SIDES* CHARS_PER_SIDE + 1> arr{};
+	const array<uint32_t, UCHAR_MAX> dictionaryEntries = [sorted_valid_chars, dictionary]() {
+		array<uint32_t, UCHAR_MAX> arr{};
 		for (int i = 0; i < sorted_valid_chars.size(); i++) {
 			int k = 0;
 			for (; k < dictionary.size() && dictionary[k][0] != sorted_valid_chars[i]; k++);
 
-			arr[i] = k;
+			arr[sorted_valid_chars[i]] = k;
 		}
 
 		arr.back() = dictionary.size();
@@ -199,7 +189,7 @@ vector<string> calcBestSolutions(const string_view sorted_valid_chars, const vec
 		}();
 
 
-	for(int i = MIN_WORDS; solutions.empty() && i < MAX_WORDS; i++) solutions = calcFixedSizeSolutions(i, sorted_valid_chars, charEntryMap, dictionaryEntries, dictionary);
+	for(int i = MIN_WORDS; solutions.empty() && i < MAX_WORDS; i++) solutions = calcFixedSizeSolutions(i, sorted_valid_chars, dictionaryEntries, dictionary);
 
 	ranges::sort(solutions, [](const string_view a, const string_view b) { return a.size() > b.size(); });
 
@@ -257,6 +247,11 @@ int main() {
 	const vector<string> solutions = calcBestSolutions(letterBoxedSides, dictionaryView);
 
 	const float time = chrono::duration<float>(chrono::high_resolution_clock::now() - start).count();
+
+	if(solutions.empty()) {
+		cout << "\nfound no solutions :(\n";
+		return EXIT_FAILURE;
+	}
 
 	cout << '\n';
 	for(int i = 1; i < solutions.size(); i++) cout << solutions[i] << '\n';
