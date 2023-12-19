@@ -142,10 +142,13 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
 		int setUpdateBegin = 1;
 		while(setUpdateBegin) {
 			//update offset sets
-			for (int k = setUpdateBegin; k < offsets.size(); k++) offsets[k] = dictionary_entries[dictionary[offsets[k - 1]].back()];
+			for(int k = offsets.size() - 1; k >= 0; k++) {
+				offsets[k]++;
+				//TEMP LEFT OFF HERE COMPLETE THIS OFFSET INCREMENT PART
+			}
 
 			do {
-				string solution = "";
+				string solution{};
 				for (int k = 0; k < offsets.size(); k++) solution += dictionary[offsets[k]];
 				bool valid = true;
 				for (int k = 0; valid && k < sorted_valid_chars.size(); k++) valid = solution.contains(sorted_valid_chars[k]);
@@ -159,14 +162,8 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
 #pragma omp critical
 					solutions.push_back(solution.substr(0, solution.size() - 2));
 				}
-				offsets.back() += 1;
+				++offsets.back();
 			} while (offsets.back() < dictionary.size() && dictionary[offsets.back()][0] == dictionary[offsets.back() - 1][0]);
-
-			for (int k = offsets.size() - 2; k >= 1; --k) {
-				offsets[k] += 1;
-				if (dictionary[offsets[k - 1]][0] == dictionary[offsets[k]][0]) setUpdateBegin = k + 1;
-			}
-			setUpdateBegin = 0;
 		}
 	}
 	return solutions;
