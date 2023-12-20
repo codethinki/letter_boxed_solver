@@ -229,7 +229,7 @@ int main() {
 	prepareWordList(wordlistPath);
 #endif
 
-	string letterBoxedSides = getLetterBoxedSides();
+	string letterBoxedSides = "rinmscdtugoa"; // getLetterBoxedSides();
 
 	const auto start = chrono::high_resolution_clock::now();
 
