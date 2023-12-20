@@ -17,6 +17,7 @@ constexpr uint32_t CHARS_PER_SIDE = 3;
 constexpr uint32_t SIDES = 4;
 constexpr uint32_t CHARS = SIDES * CHARS_PER_SIDE;
 
+
 namespace cth {
 
 using namespace std;
@@ -183,12 +184,12 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
 vector<string> calcBestSolutions(const string_view sorted_valid_chars, const vector<string_view>& dictionary) {
 	vector<string> solutions{};
 	unordered_map<char, uint32_t> charEntryMap{};
-	for (int i = 0; i < sorted_valid_chars.size(); i++) charEntryMap[sorted_valid_chars[i]] = i;
+	for(int i = 0; i < sorted_valid_chars.size(); i++) charEntryMap[sorted_valid_chars[i]] = i;
 	const array<uint32_t, CHARS + 1> dictionaryEntries = [sorted_valid_chars, dictionary]() {
-		array<uint32_t, SIDES* CHARS_PER_SIDE + 1> arr{};
-		for (int i = 0; i < sorted_valid_chars.size(); i++) {
+		array<uint32_t, SIDES * CHARS_PER_SIDE + 1> arr{};
+		for(int i = 0; i < sorted_valid_chars.size(); i++) {
 			int k = 0;
-			for (; k < dictionary.size() && dictionary[k][0] != sorted_valid_chars[i]; k++);
+			for(; k < dictionary.size() && dictionary[k][0] != sorted_valid_chars[i]; k++);
 
 			arr[i] = k;
 		}
@@ -196,10 +197,11 @@ vector<string> calcBestSolutions(const string_view sorted_valid_chars, const vec
 		arr.back() = dictionary.size();
 
 		return arr;
-		}();
+	}();
 
 
-	for(int i = MIN_WORDS; solutions.empty() && i < MAX_WORDS; i++) solutions = calcFixedSizeSolutions(i, sorted_valid_chars, charEntryMap, dictionaryEntries, dictionary);
+	for(int i = MIN_WORDS; solutions.empty() && i < MAX_WORDS; i++) solutions = calcFixedSizeSolutions(i, sorted_valid_chars, charEntryMap,
+		dictionaryEntries, dictionary);
 
 	ranges::sort(solutions, [](const string_view a, const string_view b) { return a.size() < b.size(); });
 
@@ -243,7 +245,7 @@ int main() {
 	prepareWordList(wordlistPath);
 #endif
 
-	string letterBoxedSides = "rinmscdtugoa";//getLetterBoxedSides();
+	string letterBoxedSides = "rinmscdtugoa"; //getLetterBoxedSides();
 
 	const auto start = chrono::high_resolution_clock::now();
 
@@ -259,11 +261,12 @@ int main() {
 	const float time = chrono::duration<float>(chrono::high_resolution_clock::now() - start).count();
 
 
-
 	cout << '\n';
-	for(int i  = solutions.size() - 1; i >= 1; --i) cout << solutions[i] << '\n';
+	for(int i = solutions.size() - 1; i >= 1; --i) cout << solutions[i] << '\n';
+
 
 	cout << "\nbest solution: " << solutions[0] << '\n' << "\ntook " << time << "s";
+
 
 	return EXIT_SUCCESS;
 }
