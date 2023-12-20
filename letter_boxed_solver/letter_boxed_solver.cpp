@@ -245,18 +245,18 @@ int main() {
 	prepareWordList(wordlistPath);
 #endif
 
-	string letterBoxedSides = "rinmscdtugoa"; //getLetterBoxedSides();
+	string letterBoxedChars = getLetterBoxedSides();
 
 	const auto start = chrono::high_resolution_clock::now();
 
-	auto dictionary = loadDictionaryFromWordlist(wordlistPath, letterBoxedSides);
+	auto dictionary = loadDictionaryFromWordlist(wordlistPath, letterBoxedChars);
 
-	ranges::sort(letterBoxedSides);
+	ranges::sort(letterBoxedChars);
 
 	vector<string_view> dictionaryView{};
 	dictionaryView.insert(dictionaryView.begin(), dictionary.begin(), dictionary.end());
 
-	const vector<string> solutions = calcBestSolutions(letterBoxedSides, dictionaryView);
+	const vector<string> solutions = calcBestSolutions(letterBoxedChars, dictionaryView);
 
 	const float time = chrono::duration<float>(chrono::high_resolution_clock::now() - start).count();
 
