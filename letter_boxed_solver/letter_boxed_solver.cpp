@@ -203,7 +203,7 @@ vector<string> calcBestSolutions(const string_view sorted_valid_chars, const vec
 
 	ranges::sort(solutions, [](const string_view a, const string_view b) { return a.size() < b.size(); });
 
-	//if(solutions.size() > 30) solutions.resize(30);
+	if(solutions.size() > 30) solutions.resize(30);
 
 	return solutions;
 }
@@ -243,7 +243,7 @@ int main() {
 	prepareWordList(wordlistPath);
 #endif
 
-	string letterBoxedSides = getLetterBoxedSides();
+	string letterBoxedSides = "rinmscdtugoa";//getLetterBoxedSides();
 
 	const auto start = chrono::high_resolution_clock::now();
 
@@ -258,10 +258,12 @@ int main() {
 
 	const float time = chrono::duration<float>(chrono::high_resolution_clock::now() - start).count();
 
-	cout << '\n';
-	for(int i = solutions.size() - 1; i >= 1; --i) cout << solutions[i] << '\n';
 
-	cout << "\nbest solution: " << solutions.back() << '\n' << "\ntook " << time << "s";
+
+	cout << '\n';
+	for(int i  = solutions.size() - 1; i >= 1; --i) cout << solutions[i] << '\n';
+
+	cout << "\nbest solution: " << solutions[0] << '\n' << "\ntook " << time << "s";
 
 	return EXIT_SUCCESS;
 }
