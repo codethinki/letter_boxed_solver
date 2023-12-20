@@ -144,10 +144,7 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
 			int k = offsets.size() - 1;
 			for(; dictionary[offsets[k]] != dictionary[offsets[k] + 1] && k >= 0; --k) offsets[k]++;
 			k++;
-			updateBegin = k;
-			for(; k < offsets.size() && k != 1; k++) {
-				
-			}
+			for(; k < offsets.size() && k != 1; k++) offsets[k] = dictionary_entries[dictionary[offsets[k - 1]].back()];
 
 			do {
 				string solution{};
