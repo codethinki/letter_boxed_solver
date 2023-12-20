@@ -201,9 +201,9 @@ vector<string> calcBestSolutions(const string_view sorted_valid_chars, const vec
 
 	for(int i = MIN_WORDS; solutions.empty() && i < MAX_WORDS; i++) solutions = calcFixedSizeSolutions(i, sorted_valid_chars, charEntryMap, dictionaryEntries, dictionary);
 
-	ranges::sort(solutions, [](const string_view a, const string_view b) { return a.size() > b.size(); });
+	ranges::sort(solutions, [](const string_view a, const string_view b) { return a.size() < b.size(); });
 
-	if(solutions.size() > 30) solutions.resize(30);
+	//if(solutions.size() > 30) solutions.resize(30);
 
 	return solutions;
 }
@@ -259,7 +259,7 @@ int main() {
 	const float time = chrono::duration<float>(chrono::high_resolution_clock::now() - start).count();
 
 	cout << '\n';
-	for(int i = 1; i < solutions.size(); i++) cout << solutions[i] << '\n';
+	for(int i = solutions.size() - 1; i >= 1; --i) cout << solutions[i] << '\n';
 
 	cout << "\nbest solution: " << solutions.back() << '\n' << "\ntook " << time << "s";
 
