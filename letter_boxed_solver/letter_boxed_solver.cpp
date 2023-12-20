@@ -139,12 +139,14 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
 		//set the first offset based on the current fixed word
 		offsets[0] = i;
 
-		int setUpdateBegin = 1;
-		while(setUpdateBegin) {
+		while(i == offsets[0]) {
 			//update offset sets
-			for(int k = offsets.size() - 1; k >= 0; k++) {
-				offsets[k]++;
-				//TEMP LEFT OFF HERE COMPLETE THIS OFFSET INCREMENT PART
+			int k = offsets.size() - 1;
+			for(; dictionary[offsets[k]] != dictionary[offsets[k] + 1] && k >= 0; --k) offsets[k]++;
+			k++;
+			updateBegin = k;
+			for(; k < offsets.size() && k != 1; k++) {
+				
 			}
 
 			do {
