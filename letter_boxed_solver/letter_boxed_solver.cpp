@@ -9,7 +9,7 @@
 
 #undef PREPARE_WORD_LIST
 
-constexpr uint32_t MIN_WORDS = 1;
+constexpr uint32_t MIN_WORDS = 2;
 constexpr uint32_t MAX_WORDS = 2;
 constexpr uint32_t CHARS_PER_SIDE = 3;
 constexpr uint32_t SIDES = 4;
@@ -116,6 +116,7 @@ vector<string> loadDictionaryFromWordlist(const string_view dictionary_path, con
 
 	file.close();
 
+	words.push_back(" "); // add a space to the end of the list to avoid out of bounds errors
 	return words;
 }
 /**
@@ -130,22 +131,30 @@ inline uint32_t nextOffset(vector<uint32_t>& offsets, const vector<string_view>&
 }
 
 vector<string> calcFixedSizeSolutions(const int word_count, const string_view sorted_valid_chars,
-	const array<uint32_t, UCHAR_MAX>& dictionary_entries, const vector<string_view>& dictionary) {
+	const array<uint32_t, 24>& dictionary_entries, const vector<string_view>& dictionary) {
 	vector<string> solutions{};
 
+	const int dictionarySize = dictionary.size() - 1;
+
 #pragma omp parallel for shared(dictionary_entries)
-	for(int i = 0; i < dictionary.size(); i++) {
+	for(int i = 0; i < dictionarySize; i++) {
 		vector<uint32_t> offsets(word_count);
 		//set the first offset based on the current fixed word
 		offsets[0] = i;
 
 		while(i == offsets[0]) {
-			//update offset sets
-			int k = offsets.size() - 1;
-			for(; dictionary[offsets[k]] != dictionary[offsets[k] + 1] && k >= 0; --k) offsets[k]++;
-			k++;
-			for(; k < offsets.size() && k != 1; k++) offsets[k] = dictionary_entries[dictionary[offsets[k - 1]].back()];
+			int update = offsets.size() - 1;
+			int max = dictionary_entries[dictionary[offsets[0]].back() - 'a' + 1];
+			while(update >= 0 && offsets[update] < max) {
+				offsets[update]++;
+				update--;//TEMP this is wrong fix it
+				max = dictionary_entries[dictionary[offsets[0]].back() - 'a' + 1];
+			}
 
+			for(; update < offsets.size() && update > 0; update++)
+				offsets[update] = dictionary_entries[dictionary[offsets[update - 1]].back() - 'a'];
+
+			int max = dictionary_entries[dictionary[offsets.back()][0] - 'a' + 1];
 			do {
 				string solution{};
 				for (int k = 0; k < offsets.size(); k++) solution += dictionary[offsets[k]];
@@ -162,7 +171,7 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
 					solutions.push_back(solution.substr(0, solution.size() - 2));
 				}
 				++offsets.back();
-			} while (offsets.back() < dictionary.size() && dictionary[offsets.back()][0] == dictionary[offsets.back() - 1][0]);
+			} while (offsets.back() < dictionary_entries[dictionary[offsets[]]]);
 		}
 	}
 	return solutions;
@@ -170,22 +179,22 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
 
 vector<string> calcBestSolutions(const string_view sorted_valid_chars, const vector<string_view>& dictionary) {
 	vector<string> solutions{};
-	const array<uint32_t, UCHAR_MAX> dictionaryEntries = [sorted_valid_chars, dictionary]() {
-		array<uint32_t, UCHAR_MAX> arr{};
+	const array<uint32_t, 25> dictionaryEntries = [sorted_valid_chars, dictionary]() {
+		array<uint32_t, 25> arr{};
 		for (int i = 0; i < sorted_valid_chars.size(); i++) {
 			int k = 0;
-			for (; k < dictionary.size() && dictionary[k][0] != sorted_valid_chars[i]; k++);
+			for (; k < dictionary.size() - 1 && dictionary[k][0] != sorted_valid_chars[i]; k++);
 
-			arr[sorted_valid_chars[i]] = k;
+			arr[sorted_valid_chars[i] - 'a'] = k;
+			if (i > 0) arr[sorted_valid_chars[i - 1] - 'a' + 1] = k;
 		}
-
-		arr.back() = dictionary.size();
+		arr[sorted_valid_chars.back() - 'a' + 1] = dictionary.size();
 
 		return arr;
 		}();
 
 
-	for(int i = MIN_WORDS; solutions.empty() && i < MAX_WORDS; i++) solutions = calcFixedSizeSolutions(i, sorted_valid_chars, dictionaryEntries, dictionary);
+	for(int i = MIN_WORDS; solutions.empty() && i <= MAX_WORDS; i++) solutions = calcFixedSizeSolutions(i, sorted_valid_chars, dictionaryEntries, dictionary);
 
 	ranges::sort(solutions, [](const string_view a, const string_view b) { return a.size() > b.size(); });
 
@@ -251,6 +260,10 @@ int main() {
 
 	cout << '\n';
 	for(int i = 1; i < solutions.size(); i++) cout << solutions[i] << '\n';
+	
+	//evaluate the best solution based on the least repetitions of a single char in a solutions[i] string in a lambda function
+
+
 
 	cout << "\nbest solution: " << solutions.back() << '\n' << "\ntook " << time << "s";
 
