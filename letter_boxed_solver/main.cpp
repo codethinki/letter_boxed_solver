@@ -1,5 +1,9 @@
+#include <iostream>
+#include <Windows.h>
+
 #include "CthLetterBoxedSolver.hpp"
 
+//#define PREPARE_WORD_LIST 1
 #undef PREPARE_WORD_LIST
 
 
@@ -14,8 +18,7 @@ int main() {
 #ifdef PREPARE_WORD_LIST
 	prepareWordList(wordlistPath);
 #endif
-
-    string letterBoxedSides = "rinmscdtugoa"; // getLetterBoxedSides();
+    string letterBoxedSides = "iodhuamplrnc";//TEMP use this function getLetterBoxedSides();
 
     const auto start = chrono::high_resolution_clock::now();
 

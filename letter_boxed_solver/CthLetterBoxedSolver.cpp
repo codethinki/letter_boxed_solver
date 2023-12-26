@@ -1,5 +1,9 @@
 #include "CthLetterBoxedSolver.hpp"
 
+#include <cassert>
+#include <fstream>
+#include <iostream>
+#include <string>
 
 namespace cth {
 
@@ -31,15 +35,14 @@ size_t countWords(const string_view filepath, const char list_delimiter) {
 
 void prepareWordList(const string_view filepath, const char list_delimiter) {
     if(countWords(filepath, list_delimiter) < 20) {
-        cout << '\n' << "ERROR: undefine PREPARE_WORD_LIST, change delimiter or get a better list" << endl;
+        cout << '\n' << "ERROR: LIST INVALID\n TIP: undef PREPARE_WORD_LIST or change the list delimiter" << endl;
         exit(EXIT_FAILURE);
     }
 
     vector<string> content = loadTextFile(filepath);
-    vector<string> wordlist{};
 
     vector<uint32_t> removable{};
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic) shared(content, removable)
     for(int i = 0; i < content.size(); i++) {
         string& line = content[i];
         bool valid = line.size() >= 3;
@@ -107,55 +110,15 @@ vector<string> loadDictionaryFromWordlist(const string_view dictionary_path, con
     words.push_back(" "); // add a space to the end of the list to avoid out of bounds errors
     return words;
 }
-vector<string> loadDictionaryFromWordlistOld(const string_view dictionary_path, const string_view valid_chars) {
-    vector<string> words{};
-    ifstream file(dictionary_path.data());
-
-    if (!file.is_open()) {
-        cout << "\nERROR: no dictionary found\n";
-        exit(EXIT_FAILURE);
-    }
-
-    bool finished = false;
-#pragma omp parallel shared(finished)
-    {
-
-        string line;
-        vector<string> validWords{};
-        while (!finished) {
-#pragma omp critical
-            finished = !static_cast<bool>(getline(file, line, ','));
-
-            size_t prevSide = valid_chars.find(line[0]);
-            for (int i = 1; prevSide != string::npos && i < line.size(); i++) {
-                const size_t side = valid_chars.find(line[i]);
-
-                prevSide = (prevSide / CHARS_PER_SIDE == side / CHARS_PER_SIDE) ? string::npos : side;
-            }
-            if (prevSide == string::npos) continue;
-
-            validWords.push_back(line);
-        }
-
-#pragma omp critical
-        words.insert(words.end(), validWords.begin(), validWords.end());
-    }
-    ranges::sort(words);
-
-    file.close();
-
-    words.push_back(" "); // add a space to the end of the list to avoid out of bounds errors
-    return words;
-}
 
 vector<string> calcFixedSizeSolutions(const int word_count, const string_view sorted_valid_chars, const array<uint32_t, 25>& dictionary_entries,
     const vector<string>& dictionary) {
     vector<string> solutions{};
 
-    const int dictionarySize = dictionary.size() - 1;
+    const int dictionarySize = dictionary.size() - 1; //dictionary .size() - 1 because of the appended empty word at the end
 
-#pragma omp parallel for shared(dictionary_entries)
-    for(int i = 0; i < dictionarySize; i++) {
+#pragma omp parallel for shared(dictionary_entries, dictionary, sorted_valid_chars, dictionarySize, solutions)
+    for(uint32_t i = 0; i < dictionarySize; i++) {
         vector<uint32_t> offsets(word_count);
         vector<uint32_t> offsetsMax(word_count);
         //set the first offset based on the current fixed word
@@ -172,8 +135,6 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
 
         int update = 1;
         while(i == offsets[0]) {
-            assert(update > 0 && "update cant be 0");
-
             for(; update < offsets.size(); update++) {
                 offsetsMax[update] = offsetMax(offsets[update - 1]);
                 offsets[update] = offset(offsets[update - 1]);
@@ -195,8 +156,10 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
                     solutions.push_back(solution.substr(0, solution.size() - 2));
                 }
             }
+
             update = offsets.size() - 2;
-            while(update >= 0 && ++offsets[update] >= offsetsMax[update]) --update;
+            while(update >= 0 && (++offsets[update]) >= offsetsMax[update]) --update;
+            ++update;
         }
     }
     return solutions;
@@ -213,7 +176,7 @@ vector<string> calcBestSolutions(const string_view sorted_valid_chars, const vec
             arr[sorted_valid_chars[i] - 'a'] = k;
             if(i > 0) arr[sorted_valid_chars[i - 1] - 'a' + 1] = k;
         }
-        arr[sorted_valid_chars.back() - 'a' + 1] = dictionary.size();
+        arr[sorted_valid_chars.back() - 'a' + 1] = dictionary.size() - 1;
 
         return arr;
     }();
@@ -225,7 +188,7 @@ vector<string> calcBestSolutions(const string_view sorted_valid_chars, const vec
 
     ranges::sort(solutions, [](const string_view a, const string_view b) { return a.size() < b.size(); });
 
-    if(solutions.size() > 30) solutions.resize(30);
+    if(solutions.size() > MAX_SOLUTIONS) solutions.resize(MAX_SOLUTIONS);
 
     return solutions;
 }
