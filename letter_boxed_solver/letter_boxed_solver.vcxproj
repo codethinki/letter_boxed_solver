@@ -107,11 +107,18 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <OmitFramePointers>true</OmitFramePointers>
+      <BrowseInformation>true</BrowseInformation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <Bscmake>
+      <PreserveSbr>true</PreserveSbr>
+    </Bscmake>
+    <PostBuildEvent>
+      <Command>lib /NOLOGO /OUT:"$(TargetDir)$(AssemblyName).lib" "$(ProjectDir)$(PlatformName)$(Configuration)\*.obj"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -136,9 +143,16 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <PostBuildEvent>
+      <Command>lib /NOLOGO /OUT:"$(TargetDir)$(AssemblyName).lib" "$(ProjectDir)$(PlatformName)$(Configuration)\*.obj"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="letter_boxed_solver.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="CthLetterBoxedSolver.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CthLetterBoxedSolver.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
