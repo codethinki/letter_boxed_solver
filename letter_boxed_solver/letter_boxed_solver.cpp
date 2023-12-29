@@ -9,7 +9,8 @@
 #include <unordered_map>
 #include <vector>
 
-#undef PREPARE_WORD_LIST
+#define PREPARE_WORD_LIST;
+//#undef PREPARE_WORD_LIST
 
 constexpr uint32_t MIN_WORDS = 1;
 constexpr uint32_t MAX_WORDS = 3;
@@ -239,7 +240,7 @@ int main() {
 	using namespace std;
 	using namespace cth;
 
-	const string wordlistPath = "words_hard.txt";
+	const string wordlistPath = "words_easy.txt";
 
 #ifdef PREPARE_WORD_LIST
 	prepareWordList(wordlistPath);

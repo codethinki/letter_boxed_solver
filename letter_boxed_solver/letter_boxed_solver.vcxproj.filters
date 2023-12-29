@@ -26,5 +26,11 @@
     <ClInclude Include="CthLetterBoxedSolver.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="CthUtils.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CthGlobalVariables.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

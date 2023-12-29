@@ -1,37 +1,11 @@
-#include "CthLetterBoxedSolver.hpp"
-
-#include <cassert>
-#include <fstream>
 #include <iostream>
 #include <string>
 
+#include "CthLetterBoxedSolver.hpp"
+#include "CthUtils.hpp"
+
+
 namespace cth {
-
-
-vector<string> loadTextFile(const string_view path) {
-    vector<string> data{};
-    fstream file(path.data());
-    string line;
-    while(getline(file, line)) data.push_back(line);
-
-    file.close();
-    return data;
-}
-template<typename RandIt>
-void writeTextFile(const string_view filepath, RandIt data_begin, const RandIt& data_end, const char delimiter) {
-    ofstream file(filepath.data(), ios::ate);
-
-    while(data_begin != data_end) {
-        file << *data_begin << delimiter;
-        ++data_begin;
-    }
-    file.close();
-}
-
-size_t countWords(const string_view filepath, const char list_delimiter) {
-    ifstream file(filepath.data());
-    return count(istreambuf_iterator<char>(file), istreambuf_iterator<char>(), list_delimiter);
-}
 
 void prepareWordList(const string_view filepath, const char list_delimiter) {
     if(countWords(filepath, list_delimiter) < 20) {
@@ -56,8 +30,10 @@ void prepareWordList(const string_view filepath, const char list_delimiter) {
             }
             valid = false;
         }
+        if(!valid) {
 #pragma omp critical
-        if(!valid) removable.push_back(i);
+            removable.push_back(i);
+        }
     }
     ranges::sort(removable);
     for(int i = 0; i < removable.size(); i++) content.erase(content.begin() + removable[i] - i);
@@ -67,37 +43,31 @@ void prepareWordList(const string_view filepath, const char list_delimiter) {
     writeTextFile(filepath, content.begin(), content.end(), ',');
 }
 
-vector<string> loadDictionaryFromWordlist(const string_view dictionary_path, const string_view valid_chars) {
+vector<string> loadDictionaryFromWordlist(const string_view wordlist_path, const string_view valid_chars) {
     vector<string> words{};
-    ifstream file(dictionary_path.data());
+    ifstream file(wordlist_path.data());
 
     if(!file.is_open()) {
-        cout << "\nERROR: no dictionary found\n";
+        cout << "\nERROR: no dictionary found\n searched for: " << wordlist_path.data();
         exit(EXIT_FAILURE);
     }
 
     bool finished = false;
 #pragma omp parallel shared(finished)
     {
-        constexpr uint32_t linesPerRead = 1000;
         vector<string> validWords{};
-        vector<string> lines{linesPerRead};
         while(!finished) {
+            string line;
 #pragma omp critical
-            {
-                for(int i = 0; i < linesPerRead && !finished; i++) finished = !static_cast<bool>(getline(file, lines[i], ','));
-            }
-            for(auto& line : lines) {
-                size_t prevSide = valid_chars.find(line[0]);
-                for(int i = 1; prevSide != string::npos && i < line.size(); i++) {
-                    const size_t side = valid_chars.find(line[i]);
+            finished = !static_cast<bool>(getline(file, line, ','));
 
-                    prevSide = (prevSide / CHARS_PER_SIDE == side / CHARS_PER_SIDE) ? string::npos : side;
-                }
-                if(prevSide == string::npos) continue;
+            size_t prevSide = valid_chars.find(line[0]);
+            for(int i = 1; prevSide != string::npos && i < line.size(); i++) {
+                const size_t side = valid_chars.find(line[i]);
 
-                validWords.push_back(line);
+                prevSide = (prevSide / CHARS_PER_SIDE == side / CHARS_PER_SIDE) ? string::npos : side;
             }
+            if(prevSide != string::npos) validWords.push_back(line);
         }
 
 #pragma omp critical
@@ -146,6 +116,8 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
                 bool valid = true;
                 for(int k = 0; valid && k < sorted_valid_chars.size(); k++) valid = solution.contains(sorted_valid_chars[k]);
 
+                if(!valid) continue;
+
                 if(valid) {
                     solution = "";
                     for(int k = 0; k < offsets.size(); k++) {
@@ -192,25 +164,4 @@ vector<string> calcBestSolutions(const string_view sorted_valid_chars, const vec
 
     return solutions;
 }
-string getLetterBoxedSides() {
-    string validChars{};
-
-    cout << "input the characters of one rectangle each (lowercase):\n";
-    for (int i = 0; i < SIDES; i++) {
-        cout << "side [" << to_string(i + 1) << "]: ";
-        bool valid = true;
-        string input;
-        do {
-            if (!valid) cout << "  invalid, try again: ";
-            cin >> input;
-            valid = input.size() == CHARS_PER_SIDE;
-            for (int k = 0; k < CHARS_PER_SIDE && valid; k++) valid = input[k] >= 'a' && input[k] <= 'z' && !validChars.contains(input[k]);
-        } while (!valid);
-        validChars += input;
-    }
-
-    return validChars;
-}
-
-
 }

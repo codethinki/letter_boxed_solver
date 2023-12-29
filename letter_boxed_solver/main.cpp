@@ -6,27 +6,36 @@
 //#define PREPARE_WORD_LIST 1
 #undef PREPARE_WORD_LIST
 
+namespace cth {
+    using namespace std;
 
-
+}
 
 int main() {
     using namespace std;
     using namespace cth;
 
-    const string wordlistPath = "words_hard.txt";
+    const array<string, 2> wordlistPaths = { "words_easy.txt", "words_hard.txt"};
 
 #ifdef PREPARE_WORD_LIST
 	prepareWordList(wordlistPath);
 #endif
-    string letterBoxedSides = "iodhuamplrnc";//TEMP use this function getLetterBoxedSides();
+    const string sideChars = getLetterBoxedSides();
+    const string sortedSideChars = [sideChars]() {
+        string x = sideChars;
+        ranges::sort(x);
+        return x;
+    }();
+;
 
     const auto start = chrono::high_resolution_clock::now();
 
-    const auto dictionary = loadDictionaryFromWordlist(wordlistPath, letterBoxedSides);
+    vector<string> solutions{};
+    for (int i = 0; i < wordlistPaths.size() && solutions.size() < MIN_SOLUTIONS; i++) {
+        const auto dictionary = loadDictionaryFromWordlist(wordlistPaths[i], sideChars);
 
-    ranges::sort(letterBoxedSides);
-
-    const vector<string> solutions = calcBestSolutions(letterBoxedSides, dictionary);
+        solutions = calcBestSolutions(sortedSideChars, dictionary);
+    }
 
     const float time = chrono::duration<float>(chrono::high_resolution_clock::now() - start).count();
 
@@ -34,14 +43,15 @@ int main() {
         cout << "\nfound no solutions :(\n";
         return EXIT_FAILURE;
     }
+    if(solutions.size() < MIN_SOLUTIONS) cout << "\nfound only " << to_string(solutions.size()) << " solutions :(\n";
+
 
     cout << '\n';
-    for(int i = solutions.size() - 1; i >= 0; --i) cout << solutions[i] << '\n';
+    for(int i = solutions.size() - 1; i >= 1; --i) cout << solutions[i] << '\n';
 
-    //evaluate the best solution based on the least repetitions of a single char in a solutions[i] string in a lambda function
-
-
-    cout << "\nbest solution: " << solutions[0] << '\n' << "\ntook " << time << "s";
+    cout << '\n' << "(good) solution: " << solutions[0] << '\n'; 
+    cout << "\n solutions: " << to_string(solutions.size()) << " [min: " << MIN_SOLUTIONS << ", max: " << MAX_SOLUTIONS << "]\n";
+    cout << " took: " << time << 's' << endl;
 
     return EXIT_SUCCESS;
 }
