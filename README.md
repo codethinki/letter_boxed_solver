@@ -25,4 +25,4 @@ i used:
 report all of them except cross platform or cmake stuff i haven't learned that yet so i can't help
 
 ## Other stuff
-**IMPORTANT: the wordlists are copied from [github/aliceyliang](https://github.com/aliceyliang/letter-boxed-solver) (but self prepared)**
+**Sources: the wordlists are copied from [github/aliceyliang](https://github.com/aliceyliang/letter-boxed-solver) (but self prepared)**
