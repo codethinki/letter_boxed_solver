@@ -33,4 +33,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="resources\words_easy.txt">
+      <Filter>Resource Files</Filter>
+    </Text>
+    <Text Include="resources\words_hard.txt">
+      <Filter>Resource Files</Filter>
+    </Text>
+  </ItemGroup>
 </Project>

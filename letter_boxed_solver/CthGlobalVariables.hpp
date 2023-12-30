@@ -6,7 +6,7 @@
 namespace cth {
 using namespace std;
 
-constexpr array<string, 2> WORDLIST_PATHS = { {"words_easy.txt", "words_hard.txt"} };
+constexpr array<const char*, 2> WORDLIST_PATHS = { {"resources/words_easy.txt", "resources/words_hard.txt"} };
 
 constexpr uint32_t MIN_WORDS = 1;
 constexpr uint32_t MAX_WORDS = 3;

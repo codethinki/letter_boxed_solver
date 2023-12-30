@@ -57,7 +57,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>ClangCL</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
@@ -172,7 +172,6 @@
       <BrowseInformation>true</BrowseInformation>
       <MultiProcessorCompilation>
       </MultiProcessorCompilation>
-      <AdditionalOptions>/openmp:llvm %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -182,8 +181,7 @@
       <PreserveSbr>true</PreserveSbr>
     </Bscmake>
     <PostBuildEvent>
-      <Command>
-      </Command>
+      <Command>xcopy /y /s "$(ProjectDir)resources" "$(OutputPath)resources\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -202,6 +200,7 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <FloatingPointModel>Fast</FloatingPointModel>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalOptions>-Xclang -fopenmp %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -211,8 +210,8 @@
       <AdditionalDependencies>libomp.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>
-      </Command>
+      <Command>xcopy /y "$(llvmInstallDir)\bin\libomp.dll" "$(OutputPath)"
+xcopy /y /s "$(ProjectDir)resources" "$(OutputPath)resources\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Final|x64'">
@@ -241,7 +240,8 @@
       <AdditionalDependencies>libomp.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /y "$(LLVMInstallDir)\bin\libomp.dll" "$(OutputPath)"</Command>
+      <Command>xcopy /y "$(llvmInstallDir)\bin\libomp.dll" "$(OutputPath)"
+xcopy /y /s "$(ProjectDir)resources" "$(OutputPath)resources\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -252,6 +252,10 @@
     <ClInclude Include="CthLetterBoxedSolver.hpp" />
     <ClInclude Include="CthGlobalVariables.hpp" />
     <ClInclude Include="CthUtils.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="resources\words_easy.txt" />
+    <Text Include="resources\words_hard.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
