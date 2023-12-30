@@ -20,4 +20,4 @@ i used:
 5. resizes the solutions to MAX_SOLUTIONS
 6. prints every remaining solution with the shortest as "best"
 
-## IMPORTANT: the wordlists are copied from github/aliceyliang (but self prepared)
+## IMPORTANT: the wordlists are copied from [github/aliceyliang](https://github.com/aliceyliang/letter-boxed-solver) (but self prepared)
