@@ -1,5 +1,6 @@
 # letter_boxed_solver
-pretty self explanatory how to use
+## introduction
+nothing to explain lol
 
 ## requirements
 i used:
