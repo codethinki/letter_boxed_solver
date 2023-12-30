@@ -48,7 +48,7 @@ vector<string> loadDictionaryFromWordlist(const string_view wordlist_path, const
     ifstream file(wordlist_path.data());
 
     if(!file.is_open()) {
-        cout << "\nERROR: no dictionary found\n searched for: " << wordlist_path.data();
+        cout << "\nERROR: no dictionary found\n searched for: " << wordlist_path.data() << endl;
         exit(EXIT_FAILURE);
     }
 
@@ -81,7 +81,7 @@ vector<string> loadDictionaryFromWordlist(const string_view wordlist_path, const
     return words;
 }
 
-vector<string> calcFixedSizeSolutions(const int word_count, const string_view sorted_valid_chars, const array<uint32_t, 25>& dictionary_entries,
+vector<string> calcFixedSizeSolutions(const int word_count, const string_view sorted_valid_chars, const array<uint32_t, 27>& dictionary_entries,
     const vector<string>& dictionary) {
     vector<string> solutions{};
 
@@ -118,7 +118,7 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
 
                 if(!valid) continue;
 
-                if(valid) {
+
                     solution = "";
                     for(int k = 0; k < offsets.size(); k++) {
                         solution += dictionary[offsets[k]];
@@ -126,7 +126,7 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
                     }
 #pragma omp critical
                     solutions.push_back(solution.substr(0, solution.size() - 2));
-                }
+                
             }
 
             update = offsets.size() - 2;
@@ -139,8 +139,8 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
 
 vector<string> calcBestSolutions(const string_view sorted_valid_chars, const vector<string>& dictionary) {
     vector<string> solutions{};
-    const array<uint32_t, 25> dictionaryEntries = [sorted_valid_chars, dictionary]() {
-        array<uint32_t, 25> arr{};
+    const array<uint32_t, 27> dictionaryEntries = [sorted_valid_chars, dictionary]() {
+        array<uint32_t, 27> arr{};
         for(int i = 0; i < sorted_valid_chars.size(); i++) {
             int k = 0;
             for(; k < dictionary.size() - 1 && dictionary[k][0] != sorted_valid_chars[i]; k++);
