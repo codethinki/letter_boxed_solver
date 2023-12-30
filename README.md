@@ -21,4 +21,8 @@ i used:
 5. resizes the solutions to MAX_SOLUTIONS
 6. prints every remaining solution with the shortest as "best"
 
-## IMPORTANT: the wordlists are copied from [github/aliceyliang](https://github.com/aliceyliang/letter-boxed-solver) (but self prepared)
+## Issues
+report all of them except cross platform or cmake stuff i haven't learned that yet so i can't help
+
+## Other stuff
+**IMPORTANT: the wordlists are copied from [github/aliceyliang](https://github.com/aliceyliang/letter-boxed-solver) (but self prepared)**
