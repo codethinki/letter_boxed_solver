@@ -15,3 +15,5 @@ i used:
 4. sorts the solutions by length
 5. resizes the solutions to MAX_SOLUTIONS
 6. prints every remaining solution with the shortest as "best"
+
+##the wordlists are copied from github/aliceyliang
