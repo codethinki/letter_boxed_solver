@@ -7,13 +7,17 @@
 
 namespace cth {
 
-void prepareWordList(const string_view filepath, const char list_delimiter) {
-    if(countWords(filepath, list_delimiter) < 20) {
+#ifdef PREPARE_WORD_LIST
+void prepareWordList(const string_view filepath) {
+    if(countWords(filepath, LIST_DELIMITER) < 20) {
         cout << '\n' << "ERROR: LIST INVALID\n TIP: undef PREPARE_WORD_LIST or change the list delimiter" << endl;
         exit(EXIT_FAILURE);
     }
+    else if (LIST_DELIMITER == ',') {
+        cout << '\n' << "WARNING: preparing list with the programs default delimiter!" << "\n make sure that list isn't already prepared";
+    }
 
-    vector<string> content = loadTextFile(filepath);
+    vector<string> content = loadTextFile(filepath, LIST_DELIMITER);
 
     vector<uint32_t> removable{};
 #pragma omp parallel for schedule(dynamic) shared(content, removable)
@@ -42,6 +46,8 @@ void prepareWordList(const string_view filepath, const char list_delimiter) {
 
     writeTextFile(filepath, content.begin(), content.end(), ',');
 }
+#endif
+
 
 vector<string> loadDictionaryFromWordlist(const string_view wordlist_path, const string_view valid_chars) {
     vector<string> words{};
@@ -81,6 +87,21 @@ vector<string> loadDictionaryFromWordlist(const string_view wordlist_path, const
     return words;
 }
 
+array<uint32_t, 27> calcDictionaryEntries(const string_view sorted_valid_chars, const vector<string>& dictionary) {
+    array<uint32_t, 27> arr{};
+    for(int i = 0; i < sorted_valid_chars.size(); i++) {
+        int k = 0;
+        for(; k < dictionary.size() - 1 && dictionary[k][0] != sorted_valid_chars[i]; k++);
+
+        arr[sorted_valid_chars[i] - 'a'] = k;
+        if(i > 0) arr[sorted_valid_chars[i - 1] - 'a' + 1] = k;
+    }
+    arr[sorted_valid_chars.back() - 'a' + 1] = dictionary.size() - 1;
+
+    return arr;
+}
+
+
 vector<string> calcFixedSizeSolutions(const int word_count, const string_view sorted_valid_chars, const array<uint32_t, 27>& dictionary_entries,
     const vector<string>& dictionary) {
     vector<string> solutions{};
@@ -119,14 +140,13 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
                 if(!valid) continue;
 
 
-                    solution = "";
-                    for(int k = 0; k < offsets.size(); k++) {
-                        solution += dictionary[offsets[k]];
-                        solution += ", ";
-                    }
+                solution = "";
+                for(int k = 0; k < offsets.size(); k++) {
+                    solution += dictionary[offsets[k]];
+                    solution += ", ";
+                }
 #pragma omp critical
-                    solutions.push_back(solution.substr(0, solution.size() - 2));
-                
+                solutions.push_back(solution.substr(0, solution.size() - 2));
             }
 
             update = offsets.size() - 2;
@@ -137,31 +157,39 @@ vector<string> calcFixedSizeSolutions(const int word_count, const string_view so
     return solutions;
 }
 
-vector<string> calcBestSolutions(const string_view sorted_valid_chars, const vector<string>& dictionary) {
+vector<string> solve(const string_view letter_boxed_sides) {
+    static auto isSmaller = [](const string_view a, const string_view b) { return a.size() < b.size(); };
+
+
+    string sortedSideChars{letter_boxed_sides.data()};
+    ranges::sort(sortedSideChars);
+
     vector<string> solutions{};
-    const array<uint32_t, 27> dictionaryEntries = [sorted_valid_chars, dictionary]() {
-        array<uint32_t, 27> arr{};
-        for(int i = 0; i < sorted_valid_chars.size(); i++) {
-            int k = 0;
-            for(; k < dictionary.size() - 1 && dictionary[k][0] != sorted_valid_chars[i]; k++);
 
-            arr[sorted_valid_chars[i] - 'a'] = k;
-            if(i > 0) arr[sorted_valid_chars[i - 1] - 'a' + 1] = k;
+    array<vector<string>, WORDLIST_PATHS.size()> dictionaries{};
+    array<array<uint32_t, 27>, WORDLIST_PATHS.size()> dictionaryEntries{};
+
+
+
+    for(int words = MIN_WORDS; words <= MAX_WORDS && solutions.size() < MIN_SOLUTIONS; words++) {
+        for(int listId = 0; listId < WORDLIST_PATHS.size() && solutions.size() < MIN_SOLUTIONS; listId++) {
+            if(words == MIN_WORDS) {
+                dictionaries[listId] = loadDictionaryFromWordlist(WORDLIST_PATHS[listId], letter_boxed_sides);
+                dictionaryEntries[listId] = calcDictionaryEntries(sortedSideChars, dictionaries[listId]);
+            }
+            vector<string> rawSolutions = calcFixedSizeSolutions(words, sortedSideChars, dictionaryEntries[listId], dictionaries[listId]);
+            ranges::sort(rawSolutions, isSmaller);
+
+            if(const uint32_t maxSize = MAX_SOLUTIONS - solutions.size(); rawSolutions.size() > maxSize) rawSolutions.resize(maxSize);
+
+            solutions.insert(solutions.end(), rawSolutions.begin(), rawSolutions.end());
         }
-        arr[sorted_valid_chars.back() - 'a' + 1] = dictionary.size() - 1;
+    }
 
-        return arr;
-    }();
-
-
-    for(int i = MIN_WORDS; solutions.empty() && i <= MAX_WORDS; i++)
-        solutions = calcFixedSizeSolutions(i, sorted_valid_chars, dictionaryEntries,
-            dictionary);
-
-    ranges::sort(solutions, [](const string_view a, const string_view b) { return a.size() < b.size(); });
-
-    if(solutions.size() > MAX_SOLUTIONS) solutions.resize(MAX_SOLUTIONS);
+    ranges::sort(solutions, isSmaller);
 
     return solutions;
 }
+
+
 }

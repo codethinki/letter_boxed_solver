@@ -8,11 +8,11 @@
 
 namespace cth {
 using namespace std;
-    inline vector<string> loadTextFile(const string_view path) {
+    inline vector<string> loadTextFile(const string_view path, const char delimiter) {
         vector<string> data{};
         fstream file(path.data());
         string line;
-        while (getline(file, line)) data.push_back(line);
+        while (getline(file, line, delimiter)) data.push_back(line);
 
         file.close();
         return data;
@@ -36,7 +36,7 @@ using namespace std;
     inline string getLetterBoxedSides() {
         string validChars{};
 
-        cout << "input the characters of one rectangle each (lowercase):\n";
+        cout << "input the characters of one rectangle side each (lowercase):\n";
         for (int i = 0; i < SIDES; i++) {
             cout << "side [" << to_string(i + 1) << "]: ";
             bool valid = true;
