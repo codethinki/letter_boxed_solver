@@ -4,192 +4,201 @@
 #include "CthLetterBoxedSolver.hpp"
 #include "CthUtils.hpp"
 
+#include <execution>
+#include <print>
+#include <ranges>
+
+#include <cth/io/log.hpp>
+
 
 namespace cth {
 
-#ifdef PREPARE_WORD_LIST
-void prepareWordList(const string_view filepath) {
-    if(countWords(filepath, LIST_DELIMITER) < 20) {
-        cout << '\n' << "ERROR: LIST INVALID\n TIP: undef PREPARE_WORD_LIST or change the list delimiter" << endl;
-        exit(EXIT_FAILURE);
-    }
-    else if (LIST_DELIMITER == ',') {
-        cout << '\n' << "WARNING: preparing list with the programs default delimiter!" << "\n make sure that list isn't already prepared";
-    }
 
-    vector<string> content = loadTextFile(filepath, LIST_DELIMITER);
+void prepareWordList(std::filesystem::path file) {
+    vector<string> content = loadTextFile(file.generic_string(), LIST_DELIMITER);
 
-    vector<uint32_t> removable{};
-#pragma omp parallel for schedule(dynamic) shared(content, removable)
-    for(int i = 0; i < content.size(); i++) {
-        string& line = content[i];
-        bool valid = line.size() >= 3;
+    std::sort(std::execution::par_unseq, content.begin(), content.end());
 
-        for(int k = 0; valid && k < line.size(); k++) {
-            char& c = line[k];
-            if(c >= 'a' && c <= 'z') continue;
-            if(c >= 'A' && c <= 'Z') {
-                c += 'a' - 'A';
-                continue;
-            }
-            valid = false;
-        }
-        if(!valid) {
-#pragma omp critical
-            removable.push_back(i);
-        }
-    }
-    ranges::sort(removable);
-    for(int i = 0; i < removable.size(); i++) content.erase(content.begin() + removable[i] - i);
+    CTH_STABLE_ABORT(content.size() < 20, "size < 20, probably wrong word list"){}
 
-    ranges::sort(content);
+    file.replace_extension(".cth");
 
-    writeTextFile(filepath, content.begin(), content.end(), ',');
-}
-#endif
+    vector<uint8_t> optimized(content.size() * ROW_SIZE);
+    size_t index = 0;
 
+    for(auto& line : content) {
+        if(line.size() <= 2) continue;
+        CTH_STABLE_ABORT(line.size() > MAX_WORD_SIZE, "word too long, consider increasing the row size") {}
 
-vector<string> loadDictionaryFromWordlist(const string_view wordlist_path, const string_view valid_chars) {
-    vector<string> words{};
-    ifstream file(wordlist_path.data());
+        optimized[index] = static_cast<uint8_t>(line.size());
+        for(size_t k = 0; k < line.size(); k++) {
+            if(line[k] >= 'A' && line[k] <= 'Z') line[k] += 'a' - 'A';
 
-    if(!file.is_open()) {
-        cout << "\nERROR: no dictionary found\n searched for: " << wordlist_path.data() << endl;
-        exit(EXIT_FAILURE);
-    }
-
-    bool finished = false;
-#pragma omp parallel shared(finished)
-    {
-        vector<string> validWords{};
-        while(!finished) {
-            string line;
-#pragma omp critical
-            finished = !static_cast<bool>(getline(file, line, ','));
-
-            size_t prevSide = valid_chars.find(line[0]);
-            for(int i = 1; prevSide != string::npos && i < line.size(); i++) {
-                const size_t side = valid_chars.find(line[i]);
-
-                prevSide = (prevSide / CHARS_PER_SIDE == side / CHARS_PER_SIDE) ? string::npos : side;
-            }
-            if(prevSide != string::npos) validWords.push_back(line);
+            optimized[index + k + 1] = line[k] - 'a';
         }
 
-#pragma omp critical
-        words.insert(words.end(), validWords.begin(), validWords.end());
+        index += ROW_SIZE;
     }
-    ranges::sort(words);
 
-    file.close();
+    optimized.resize(index);
 
-    words.push_back(" "); // add a space to the end of the list to avoid out of bounds errors
-    return words;
-}
+    std::ofstream out{file, std::ios::binary | std::ios::trunc};
 
-array<uint32_t, 27> calcDictionaryEntries(const string_view sorted_valid_chars, const vector<string>& dictionary) {
-    array<uint32_t, 27> arr{};
-    for(int i = 0; i < sorted_valid_chars.size(); i++) {
-        int k = 0;
-        for(; k < dictionary.size() - 1 && dictionary[k][0] != sorted_valid_chars[i]; k++);
-
-        arr[sorted_valid_chars[i] - 'a'] = k;
-        if(i > 0) arr[sorted_valid_chars[i - 1] - 'a' + 1] = k;
-    }
-    arr[sorted_valid_chars.back() - 'a' + 1] = dictionary.size() - 1;
-
-    return arr;
+    out.write(reinterpret_cast<char const*>(optimized.data()), static_cast<streamsize>(optimized.size()));
+    out.close();
 }
 
 
-vector<string> calcFixedSizeSolutions(const int word_count, const string_view sorted_valid_chars, const array<uint32_t, 27>& dictionary_entries,
-    const vector<string>& dictionary) {
-    vector<string> solutions{};
+vector<uint8_t> loadDictionary(std::filesystem::path const& path, std::span<uint8_t const> valid_chars) {
+    vector<uint8_t> dictionary{};
 
-    const int dictionarySize = dictionary.size() - 1; //dictionary .size() - 1 because of the appended empty word at the end
+    auto const list = loadWordList(path);
 
-#pragma omp parallel for shared(dictionary_entries, dictionary, sorted_valid_chars, dictionarySize, solutions)
-    for(uint32_t i = 0; i < dictionarySize; i++) {
-        vector<uint32_t> offsets(word_count);
-        vector<uint32_t> offsetsMax(word_count);
-        //set the first offset based on the current fixed word
+    std::array<uint8_t, 26> validChars{};
 
-        auto offsetMax = [dictionary_entries, dictionary](const size_t prev_offset) {
-            return dictionary_entries[dictionary[prev_offset].back() - 'a' + 1];
+    for(size_t i = 0; i < valid_chars.size(); ++i)
+        validChars[valid_chars[i]] = static_cast<uint8_t>(i / CHARS_PER_SIDE + 1);
+
+
+    auto const rows = std::ranges::chunk_view{list, ROW_SIZE};
+    for(auto const row : rows) {
+        auto const size = static_cast<size_t>(row[0]);
+        size_t prev = 0;
+        for(size_t i = 0; i < size; ++i) {
+            auto const side = validChars[row[i + 1]];
+            if(side == 0 || side == prev) goto next;
+            prev = side;
+        }
+
+        dictionary.insert_range(dictionary.end(), row);
+    next:;
+    }
+
+    return dictionary;
+}
+
+std::array<size_t, 27> calcDictionaryEntries(std::span<uint8_t const> sorted_valid_chars, std::span<uint8_t const> dictionary) {
+    std::array<size_t, 27> entries{};
+
+    size_t index = 0;
+
+    for(size_t i = 0; i < dictionary.size(); i += ROW_SIZE) {
+        if(dictionary[i + 1] == sorted_valid_chars[index]) continue;
+
+        entries[sorted_valid_chars[index] + 1] = i;
+        ++index;
+        entries[sorted_valid_chars[index]] = i;
+    }
+    entries[sorted_valid_chars.back() + 1] = dictionary.size();
+    return entries;
+}
+
+
+vector<vector<string>> solve(std::filesystem::path const& path, std::string_view valid_chars) {
+    CTH_CRITICAL(path.extension() != ".cth", "must be an optimized word list"){}
+
+    static constexpr size_t NO_INDEX = std::numeric_limits<size_t>::max();
+
+    vector<std::array<size_t, MAX_WORDS>> solutions{};
+    std::vector<uint8_t> chars(valid_chars.size());
+    std::ranges::transform(valid_chars, chars.begin(), [](char c) { return static_cast<uint8_t>(c - 'a'); });
+
+    auto const dictionary = loadDictionary(path, chars);
+    std::ranges::sort(chars);
+    auto const entries = calcDictionaryEntries(chars, dictionary);
+
+    auto const firstChar = [&dictionary](size_t row_begin) { return dictionary[row_begin + 1]; };
+    auto const wordSize = [&dictionary](size_t row_begin) { return dictionary[row_begin]; };
+    auto const lastChar = [wordSize, &dictionary](size_t row_begin) { return dictionary[row_begin + wordSize(row_begin)]; };
+
+    auto const begin = [&entries](uint8_t character) { return entries[character]; };
+    auto const end = [&entries](uint8_t character) { return entries[character + 1]; };
+
+
+    auto const modify = [wordSize, &dictionary]<class T>(std::span<uint8_t, 26> counter, size_t row_begin, T) {
+        static constexpr T OP{};
+        CTH_CRITICAL(row_begin > dictionary.size(), "invalid row begin") {}
+
+        auto const wordBegin = row_begin + 1;
+        auto const rowEnd = wordBegin + wordSize(row_begin);
+        for(size_t k = wordBegin; k != rowEnd; ++k) {
+            auto& num = counter[dictionary[k]];
+
+            num = static_cast<uint8_t>(OP(num, 1ui8));
+        }
+    };
+
+    for(size_t i = 0; i < dictionary.size(); i += ROW_SIZE) {
+        std::vector<std::array<size_t, MAX_WORDS>> partialSolutions{};
+
+        std::array<size_t, MAX_WORDS - 1> rowBegins{};
+        rowBegins.fill(NO_INDEX);
+
+        std::array<uint8_t, 26> charCounter{};
+        modify(charCounter, i, std::plus{});
+
+
+        auto const setBegin = [modify, &rowBegins, &charCounter](size_t row_index, size_t new_row_begin) {
+            rowBegins[row_index] = new_row_begin;
+            modify(charCounter, new_row_begin, std::plus{});
         };
-        auto offset = [dictionary_entries, dictionary](const size_t prev_offset) { return dictionary_entries[dictionary[prev_offset].back() - 'a']; };
 
-        offsets[0] = i;
-        offsetsMax[0] = dictionarySize;
+        auto const next = [end, setBegin, begin, lastChar, firstChar, &modify, &rowBegins, &charCounter](size_t row_index) {
+            CTH_CRITICAL(row_index >= rowBegins.size(), "row index invalid") {}
 
-        for(int k = 1; k < offsetsMax.size(); k++) offsetsMax[k] = offsetMax(offsets[k - 1]);
 
-        int update = 1;
-        while(i == offsets[0]) {
-            for(; update < offsets.size(); update++) {
-                offsetsMax[update] = offsetMax(offsets[update - 1]);
-                offsets[update] = offset(offsets[update - 1]);
+            auto& rowBegin = rowBegins[row_index];
+
+            modify(charCounter, rowBegin, std::minus{});
+
+            auto const newBegin = rowBegin + ROW_SIZE;
+            auto const rowEnd = end(firstChar(rowBegin));
+            CTH_CRITICAL(newBegin > rowEnd, "must be less or equal") {}
+            if(newBegin == rowEnd) {
+                rowBegin = NO_INDEX;
+                return;
             }
 
-            for(; offsets.back() < offsetsMax.back(); ++offsets.back()) {
-                string solution{};
-                for(int k = 0; k < offsets.size(); k++) solution += dictionary[offsets[k]];
-                bool valid = true;
-                for(int k = 0; valid && k < sorted_valid_chars.size(); k++) valid = solution.contains(sorted_valid_chars[k]);
+            setBegin(row_index, newBegin);
 
-                if(!valid) continue;
+            if(row_index == rowBegins.size() - 1) return;
+            CTH_CRITICAL(rowBegins[row_index + 1] != NO_INDEX, "must be empty to increment") {}
 
+            setBegin(row_index + 1, begin(lastChar(newBegin)));
+        };
 
-                solution = "";
-                for(int k = 0; k < offsets.size(); k++) {
-                    solution += dictionary[offsets[k]];
-                    solution += ", ";
-                }
-#pragma omp critical
-                solutions.push_back(solution.substr(0, solution.size() - 2));
+        setBegin(0, begin(lastChar(i)));
+
+        while(true) {
+            if(std::ranges::none_of(chars, [&charCounter](auto const c) { return charCounter[c] == 0; })) {
+                partialSolutions.emplace_back();
+                partialSolutions.back()[0] = i;
+                std::ranges::copy(rowBegins, partialSolutions.back().begin() + 1);
             }
 
-            update = offsets.size() - 2;
-            while(update >= 0 && (++offsets[update]) >= offsetsMax[update]) --update;
-            ++update;
+            int j = rowBegins.size() - 1;
+            while(j >= 0 && rowBegins[j] == NO_INDEX) --j;
+            if(j < 0) break;
+            next(j);
         }
-    }
-    return solutions;
-}
 
-vector<string> solve(const string_view letter_boxed_sides) {
-    static auto isSmaller = [](const string_view a, const string_view b) { return a.size() < b.size(); };
-
-
-    string sortedSideChars{letter_boxed_sides.data()};
-    ranges::sort(sortedSideChars);
-
-    vector<string> solutions{};
-
-    array<vector<string>, WORDLIST_PATHS.size()> dictionaries{};
-    array<array<uint32_t, 27>, WORDLIST_PATHS.size()> dictionaryEntries{};
-
-
-
-    for(int words = MIN_WORDS; words <= MAX_WORDS && solutions.size() < MIN_SOLUTIONS; words++) {
-        for(int listId = 0; listId < WORDLIST_PATHS.size() && solutions.size() < MIN_SOLUTIONS; listId++) {
-            if(words == MIN_WORDS) {
-                dictionaries[listId] = loadDictionaryFromWordlist(WORDLIST_PATHS[listId], letter_boxed_sides);
-                dictionaryEntries[listId] = calcDictionaryEntries(sortedSideChars, dictionaries[listId]);
-            }
-            vector<string> rawSolutions = calcFixedSizeSolutions(words, sortedSideChars, dictionaryEntries[listId], dictionaries[listId]);
-            ranges::sort(rawSolutions, isSmaller);
-
-            if(const uint32_t maxSize = MAX_SOLUTIONS - solutions.size(); rawSolutions.size() > maxSize) rawSolutions.resize(maxSize);
-
-            solutions.insert(solutions.end(), rawSolutions.begin(), rawSolutions.end());
-        }
+        solutions.append_range(partialSolutions);
     }
 
-    ranges::sort(solutions, isSmaller);
 
-    return solutions;
+    std::vector<std::vector<string>> result{};
+    result.resize(solutions.size());
+
+    for(auto [src, dst] : std::views::zip(solutions, result))
+        for(auto const first : src) {
+            if(first == NO_INDEX) break;
+            std::ranges::subrange const word{dictionary.begin() + first + 1, dictionary.begin() + first + wordSize(first)};
+            dst.emplace_back(std::from_range, word | std::views::transform([](uint8_t character) { return character + 'a'; }));
+        }
+
+    std::sort(std::execution::par_unseq, result.begin(), result.end(), [](auto const& a, auto const& b) { return a.size() < b.size(); });
+
+    return result;
+
 }
-
-
 }
