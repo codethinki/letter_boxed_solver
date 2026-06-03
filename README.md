@@ -7,6 +7,8 @@ solves the game
 1. enter sides 1 by 1
 1. start
 
+on an intel 11th gen it solves it in `< 4ms`, constexpr word list `< 2.5ms`
+
 ## mechanism
 1. simd friendly wordlist separator parsing (auto vectorized by clang). Not needed if using constexpr wordlist (enabled per default)
 1. filter word list for allowed characters & character sequences with overlapping bitmasks (no overlap => valid)
