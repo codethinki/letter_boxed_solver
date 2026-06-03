@@ -1,0 +1,6 @@
+[submodule "cth_cmake"]
+	path = lib/cth_cmake
+	url = https://github.com/codethinki/cth_cmake
+[submodule "cth"]
+	path = lib/cth
+	url = https://github.com/codethinki/cth
