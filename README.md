@@ -21,7 +21,7 @@ solves the game
 
 ### requirements
 - c++ 23 with #embed support
-- cth library "install" path specified in the CMakePresets.json (default: ´${ProjectDir}../cth/out/install/`
+- cth library "install" path specified in the CMakePresets.json (default: `${ProjectDir}../cth/out/install/`
 
 
 
