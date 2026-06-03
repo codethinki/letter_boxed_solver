@@ -71,6 +71,10 @@ namespace lbs {
 namespace dev {
     constexpr char raw_word_list[] = {
 #embed STATIC_WORD_LIST_PATH_DEF
+
+
+
+
     };
 }
 
@@ -115,9 +119,15 @@ void solve_manual(std::string_view characters) {
 
 
 //void solve_gpt(std::string_view, std::string_view);
-void pause();
+void pause() {
+    std::cout << "Press Enter to continue . . ." << std::flush;
+    std::cin.clear();
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    std::cin.get();
+}
+
 int main() {
-    auto sides = read_sides();
+    auto const sides = read_sides();
 
     lbs::solve_manual(sides);
 
@@ -126,11 +136,7 @@ int main() {
     //solve_gpt(sides, DYNAMIC_WORD_LIST_PATH_DEF);
 }
 
-#include <windows.h>
-void pause() {
-    system("pause");
-}
-
+//// gpt code for comparison
 //#include "gpt_runner.hpp"
 //void solve_gpt(std::string_view sides, std::string_view dictionary) {
 //    LetterBoxedSolver solver;
