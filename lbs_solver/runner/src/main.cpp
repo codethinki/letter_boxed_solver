@@ -115,14 +115,20 @@ void solve_manual(std::string_view characters) {
 
 
 //void solve_gpt(std::string_view, std::string_view);
-
+void pause();
 int main() {
     auto sides = read_sides();
 
     lbs::solve_manual(sides);
 
     std::println();
+    pause();
     //solve_gpt(sides, DYNAMIC_WORD_LIST_PATH_DEF);
+}
+
+#include <windows.h>
+void pause() {
+    system("pause");
 }
 
 //#include "gpt_runner.hpp"
