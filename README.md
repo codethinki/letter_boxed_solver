@@ -3,7 +3,7 @@
 solves the game
 
 ## usage
-1. start
+1. run program
 1. enter sides 1 by 1
 1. start
 
