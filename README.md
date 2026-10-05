@@ -24,7 +24,7 @@ on an intel 11th gen it solves it in `< 4ms`, constexpr word list `< 2.5ms`
 - contains settings.hpp with some constants e.g. max solution count
 
 ### requirements
-- c++ 23 with #embed support
+- c++ 23, uses #embed when supported (otherwise the word list is loaded at runtime)
 - cmake 4.1+, ninja
 - [vcpkg](https://github.com/microsoft/vcpkg) with `VCPKG_ROOT` set
 - cth is included as package in `lib/cth`
