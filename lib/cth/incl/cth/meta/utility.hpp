@@ -1,0 +1,42 @@
+#pragma once
+#include "cth/macro.hpp"
+
+#include <cstddef>
+#include <limits>
+#include <type_traits>
+#include <utility>
+
+// independent constants
+
+namespace cth::mta {
+
+constexpr auto no_range = [] {};
+constexpr auto empty = [] {};
+constexpr size_t MAX_DEPTH = (std::numeric_limits<size_t>::max)();
+
+using no_range_t = decltype(no_range);
+using empty_t = decltype(empty);
+
+template<auto TraitValue>
+using type_of_t = decltype(TraitValue)::type;
+}
+
+namespace cth::mta {
+
+template<class T = size_t>
+consteval size_t zero() { return 0; }
+
+template<class T>
+consteval size_t zero(T) { return zero<T>(); }
+template<auto Val>
+consteval size_t zero() { return mta::zero(Val); }
+
+template<bool Copy, class T>
+decltype(auto) copy_if(T&& value) {
+    if constexpr(Copy)
+        return std::remove_cvref_t<T>{value};
+    else
+        return std::forward<T>(value);
+}
+
+}

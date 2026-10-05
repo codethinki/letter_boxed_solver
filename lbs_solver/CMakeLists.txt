@@ -13,8 +13,8 @@ target_include_directories(
 )
 
 
-find_package(cth CONFIG REQUIRED)
-target_link_libraries(lbs_solver PUBLIC cth::cth cth::win)
+find_package(cth CONFIG REQUIRED COMPONENTS cth)
+target_link_libraries(lbs_solver PUBLIC cth::cth)
 
 add_subdirectory(runner)
 
