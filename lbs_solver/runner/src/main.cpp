@@ -68,29 +68,29 @@ void solve_timed(std::string_view characters, std::string_view csv, std::span<si
 namespace lbs {
 
 
+#ifdef __has_embed
 namespace dev {
     constexpr char raw_word_list[] = {
 #embed STATIC_WORD_LIST_PATH_DEF
-
-
-
-
     };
 }
 
-
 constexpr std::string_view WORD_LIST_CSV{dev::raw_word_list, sizeof(dev::raw_word_list)};
 
+void solve_manual(std::string_view characters) {
+    constexpr auto splits = cth::dt::as_cxpr_array<[] { return lbs::split(WORD_LIST_CSV, ','); }>();
+
+    lbs::solve_timed(characters, WORD_LIST_CSV, splits);
+}
+#else
 constexpr std::string_view WORD_LIST_PATH{DYNAMIC_WORD_LIST_PATH_DEF};
 
 void solve_manual(std::string_view characters) {
-    //auto [csv, splits] = lbs::dyn_load(WORD_LIST_PATH);
-    constexpr auto splits = cth::dt::as_cxpr_array<[] { return lbs::split(WORD_LIST_CSV, ','); }>();
+    auto const wordList = lbs::dyn_load(WORD_LIST_PATH);
 
-
-    lbs::solve_timed(characters, WORD_LIST_CSV, splits);
-
+    lbs::solve_timed(characters, wordList.csv, wordList.splits);
 }
+#endif
 }
 
 
