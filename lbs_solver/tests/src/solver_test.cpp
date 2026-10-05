@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include <cth/win/io.hpp>
+#include <cth/io/file.hpp>
 #include <print>
 
 #include <chrono>
@@ -17,7 +17,7 @@ TEST(solver, real_world) {
     using fms = std::chrono::duration<double, std::milli>;
 
     auto const startLoad = clock::now();
-    auto const data = cth::win::io::read_unbuffered("assets/words_easy.txt");
+    auto const data = cth::io::file::read<std::byte>("assets/words_easy.txt");
     auto const endLoad = clock::now();
 
     auto const startSplit = clock::now();

@@ -1,7 +1,7 @@
 #include "solver/solver.hpp"
 
 #include <cth/data/cxpr.hpp>
-#include <cth/win/io.hpp>
+#include <cth/io/file.hpp>
 
 #include <chrono>
 #include <print>
@@ -13,14 +13,14 @@ using fms = std::chrono::duration<double, std::milli>;
 struct word_list_t {
     std::string_view csv;
     std::vector<size_t> splits;
+    std::vector<std::byte> data{};
 };
 
 
 
 word_list_t dyn_load(std::string_view word_list_path) {
     auto const startLoad = clock::now();
-    auto const mapping = cth::win::io::map_file(word_list_path);
-    auto const data = mapping.data;
+    auto data = cth::io::file::read<std::byte>(word_list_path);
     auto const endLoad = clock::now();
 
     auto const startSplit = clock::now();
@@ -30,7 +30,7 @@ word_list_t dyn_load(std::string_view word_list_path) {
 
     std::println("loaded data in {}", fms{endLoad - startLoad});
     std::println("split words in {}", fms{endSplit - startSplit});
-    return {csv, std::move(splits)};
+    return {csv, std::move(splits), std::move(data)};
 }
 
 constexpr word_list_t precompute_word_list(std::string_view csv) {
