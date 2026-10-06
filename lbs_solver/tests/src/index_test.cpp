@@ -14,18 +14,19 @@ TEST(Index, ctor) {
     };
     constexpr size_t expectedWordC = 3;
 
-    auto const splits = split(wordList, ',', 1);
+    auto const wordEnds = word_ends(wordList, ',', 1);
 
-    ASSERT_EQ(splits[0], 1);
-    ASSERT_EQ(splits[1], 3);
-    ASSERT_EQ(splits[2], 5);
+    ASSERT_EQ(wordEnds[0], 1);
+    ASSERT_EQ(wordEnds[1], 3);
+    ASSERT_EQ(wordEnds[2], 5);
+    ASSERT_EQ(wordEnds[3], 6);
 
     auto const compressionIndex = gen_compression_index("axxbyyczzzzz");
 
     auto const& [actualWords, actualWordHashes] = filter_and_hash(
         compressionIndex,
         wordList,
-        splits
+        wordEnds
     );
 
     ASSERT_EQ(actualWords.size(), expectedWordC);
@@ -42,30 +43,33 @@ TEST(Index, ctor) {
 }
 
 namespace {
-    std::vector<size_t> scalar_split(std::string_view data, char separator) {
-        std::vector<size_t> separatorIdxs{};
+    std::vector<size_t> scalar_word_ends(std::string_view data, char separator) {
+        std::vector<size_t> wordEnds{};
         for(size_t i = 0; i < data.size(); i++)
             if(data[i] == separator)
-                separatorIdxs.push_back(i);
-        return separatorIdxs;
+                wordEnds.push_back(i);
+        wordEnds.push_back(data.size());
+        return wordEnds;
     }
 }
 
-static_assert(split(std::string_view{"ab,cd,ef"}, ',') == std::vector<size_t>{2, 5});
+static_assert(word_ends(std::string_view{"ab,cd,ef"}, ',') == std::vector<size_t>{2, 5, 8});
+static_assert(word_ends(std::string_view{"abc"}, ',') == std::vector<size_t>{3});
+static_assert(word_ends(std::string_view{""}, ',') == std::vector<size_t>{0});
 
-TEST(Index, split_every_size) {
+TEST(Index, word_ends_every_size) {
     std::string data{};
     for(size_t i = 0; data.size() < 300; i++)
         data += std::string(i % 13, 'a') + ',';
 
     for(size_t size = 0; size <= data.size(); size++) {
         std::string_view const prefix{data.data(), size};
-        EXPECT_EQ(split(prefix, ','), scalar_split(prefix, ',')) << "size " << size;
+        EXPECT_EQ(word_ends(prefix, ','), scalar_word_ends(prefix, ',')) << "size " << size;
     }
 }
 
-TEST(Index, split_only_separators) {
+TEST(Index, word_ends_only_separators) {
     std::string const data(300, ',');
-    EXPECT_EQ(split(data, ','), scalar_split(data, ','));
+    EXPECT_EQ(word_ends(data, ','), scalar_word_ends(data, ','));
 }
 }

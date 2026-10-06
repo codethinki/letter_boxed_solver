@@ -9,7 +9,7 @@
 namespace lbs {
 struct word_list_t {
     std::string_view csv;
-    std::vector<size_t> splits;
+    std::vector<size_t> wordEnds;
     std::vector<std::byte> data{};
 };
 
@@ -18,16 +18,16 @@ struct word_list_t {
 word_list_t dyn_load(std::string_view word_list_path) {
     auto data = cth::io::file::read<std::byte>(word_list_path);
     std::string_view csv{reinterpret_cast<char const*>(data.data()), data.size()};
-    auto splits = lbs::split(csv, ',');
-    return {csv, std::move(splits), std::move(data)};
+    auto wordEnds = lbs::word_ends(csv, ',');
+    return {csv, std::move(wordEnds), std::move(data)};
 }
 
-void print_solutions(std::string_view characters, std::string_view csv, std::span<size_t const> splits) {
+void print_solutions(std::string_view characters, std::string_view csv, std::span<size_t const> wordEnds) {
     auto const compressionIndex = gen_compression_index(characters);
     auto const& [words, wordHashes] = filter_and_hash(
         compressionIndex,
         csv,
-        splits
+        wordEnds
     );
 
     auto const solutions = lbs::solve(compressionIndex, words, wordHashes);
@@ -55,9 +55,9 @@ namespace {
     constexpr std::string_view WORD_LIST_CSV{dev::raw_word_list, sizeof(dev::raw_word_list)};
 
     void solve_manual(std::string_view characters) {
-        constexpr auto splits = cth::dt::as_cxpr_array<[] { return lbs::split(WORD_LIST_CSV, ','); }>();
+        constexpr auto wordEnds = cth::dt::as_cxpr_array<[] { return lbs::word_ends(WORD_LIST_CSV, ','); }>();
 
-        lbs::print_solutions(characters, WORD_LIST_CSV, splits);
+        lbs::print_solutions(characters, WORD_LIST_CSV, wordEnds);
     }
 #else
     constexpr std::string_view WORD_LIST_PATH{DYNAMIC_WORD_LIST_PATH_DEF};
@@ -65,7 +65,7 @@ namespace {
     void solve_manual(std::string_view characters) {
         auto const wordList = lbs::dyn_load(WORD_LIST_PATH);
 
-        lbs::print_solutions(characters, wordList.csv, wordList.splits);
+        lbs::print_solutions(characters, wordList.csv, wordList.wordEnds);
     }
 #endif
 

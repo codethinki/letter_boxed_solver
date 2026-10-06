@@ -16,7 +16,7 @@
 #endif
 
 
-namespace lbs {
+namespace lbs::dev {
 [[nodiscard]] constexpr std::vector<size_t> split(
     std::span<char const> data,
     char separator,
@@ -62,10 +62,9 @@ namespace lbs {
         (lastBlock == block_t{separator}).to_ullong()
     );
 
+
     return separatorIdxs;
 }
-
-
 
 #else
 
@@ -97,6 +96,21 @@ namespace lbs {
 }
 #endif
 
+}
+
+namespace lbs {
+/**
+ * @return the end index of every word, the last one is data.size()
+ */
+[[nodiscard]] constexpr std::vector<size_t> word_ends(
+    std::span<char const> data,
+    char separator,
+    size_t separatorDistGuess = 3
+) {
+    auto wordEnds = dev::split(data, separator, separatorDistGuess);
+    wordEnds.push_back(data.size());
+    return wordEnds;
+}
 }
 
 namespace lbs {
@@ -171,35 +185,41 @@ struct words_data {
     std::vector<char_mask_t> wordHashes;
 };
 
+/**
+ * filters the words and builds hashes
+ * @param compressionIndex char -> index in [0, 11]
+ * @param csv words
+ * @param wordEnds word end indices
+ * @return filtered words & their hashes
+ */
 [[nodiscard]] constexpr words_data filter_and_hash(
-    compression_index_t const& compression_index,
+    compression_index_t const& compressionIndex,
     std::string_view csv,
-    std::span<size_t const> splits
+    std::span<size_t const> wordEnds
 ) {
-    auto const charFilterMasks = gen_char_filter_masks(compression_index);
+    auto const charFilterMasks = gen_char_filter_masks(compressionIndex);
 
     static constexpr size_t FILTER_FREQ = 2;
 
     words_data out{};
-    out.words.reserve(splits.size() / FILTER_FREQ);
-    out.wordHashes.reserve(splits.size() / FILTER_FREQ);
+    out.words.reserve(wordEnds.size() / FILTER_FREQ);
+    out.wordHashes.reserve(wordEnds.size() / FILTER_FREQ);
 
     size_t begin = 0;
 
-    // <= to handle tail
-    for(size_t splitI = 0; splitI <= splits.size(); splitI++) {
-        auto const end = splitI == splits.size() ? csv.size() : splits[splitI];
+    for(auto const end : wordEnds) {
         auto const size = end - begin;
+
         if(size > 0) {
             auto const word = csv.substr(begin, size);
 
-            char_mask_t wordHash = bit_flag(word[0], compression_index);
+            char_mask_t wordHash = bit_flag(word[0], compressionIndex);
             size_t i = 1;
 
             for(; i < size; i++) {
                 auto const& charMask = charFilterMasks[idx(word[i])];
                 auto const& prevCharMask = charFilterMasks[idx(word[i - 1])];
-                wordHash |= bit_flag(word[i], compression_index);
+                wordHash |= bit_flag(word[i], compressionIndex);
                 if((charMask & prevCharMask) != 0)
                     break;
             }
