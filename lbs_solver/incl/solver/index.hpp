@@ -16,12 +16,47 @@
 #endif
 
 
-namespace lbs::dev {
-[[nodiscard]] constexpr std::vector<size_t> split(
+namespace lbs {
+namespace dev {
+    [[nodiscard]] constexpr std::vector<size_t> split(
+        std::span<char const> data,
+        char separator,
+        size_t separatorDistGuess = 3
+    );
+}
+
+/**
+ * @return the end index of every word, the last one is data.size()
+ */
+[[nodiscard]] constexpr std::vector<size_t> word_ends(
     std::span<char const> data,
     char separator,
     size_t separatorDistGuess = 3
 );
+
+struct words_data {
+    std::vector<std::string_view> words;
+    std::vector<char_mask_t> wordHashes;
+};
+
+
+/**
+ * filters the words and builds hashes
+ * @param compressionIndex char -> index in [0, 11]
+ * @param csv words
+ * @param wordEnds word end indices
+ * @return filtered words & their hashes
+ */
+[[nodiscard]] constexpr words_data filter_and_hash(
+    compression_index_t const& compressionIndex,
+    std::string_view csv,
+    std::span<size_t const> wordEnds
+);
+
+
+}
+
+namespace lbs::dev {
 
 #if defined(__cpp_lib_simd) || defined(__glibcxx_simd)
 [[nodiscard]] constexpr std::vector<size_t> split(
@@ -53,6 +88,7 @@ namespace lbs::dev {
         extract_separator_idxs(i, (simdBlock == block_t{separator}).to_ullong());
     }
 
+    // bug in gcc, std::simd::partial_load fails to load byte 3 when exactly 4 bytes are remaining
     std::array<char, BLOCK_SIZE> lastChars{};
     std::ranges::copy(data.subspan(uncheckedEnd), lastChars.begin());
     auto lastBlock = std::simd::unchecked_load<block_t>(lastChars);
@@ -99,16 +135,14 @@ namespace lbs::dev {
 }
 
 namespace lbs {
-/**
- * @return the end index of every word, the last one is data.size()
- */
 [[nodiscard]] constexpr std::vector<size_t> word_ends(
     std::span<char const> data,
     char separator,
-    size_t separatorDistGuess = 3
+    size_t separatorDistGuess
 ) {
     auto wordEnds = dev::split(data, separator, separatorDistGuess);
-    wordEnds.push_back(data.size());
+    if(wordEnds.empty() || wordEnds.back() != data.size())
+        wordEnds.push_back(data.size());
     return wordEnds;
 }
 }
@@ -180,18 +214,7 @@ namespace lbs {
     return filterFlags;
 }
 
-struct words_data {
-    std::vector<std::string_view> words;
-    std::vector<char_mask_t> wordHashes;
-};
 
-/**
- * filters the words and builds hashes
- * @param compressionIndex char -> index in [0, 11]
- * @param csv words
- * @param wordEnds word end indices
- * @return filtered words & their hashes
- */
 [[nodiscard]] constexpr words_data filter_and_hash(
     compression_index_t const& compressionIndex,
     std::string_view csv,
