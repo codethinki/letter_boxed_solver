@@ -39,26 +39,18 @@ namespace dev {
         return router;
     }
 
-    using lala = int;
+    /**
+     * checks if the words can cover the solution
+     * @param nodes word nodes
+     * @return  if no solution
+     */
     [[nodiscard]] constexpr bool early_terminate_instance(nodes_view_t nodes) {
-        size_t onlyOutgoing = 0;
-        size_t onlyIncoming = 0;
+        char_mask_t covered{};
+        for(auto const& node : nodes)
+            for(auto const& edge : node.outgoing)
+                covered |= edge.wordHash;
 
-        lala a = 0;
-
-        for(auto& node : nodes) {
-            bool noIncoming = node.incoming == 0;
-            bool noOutcoming = node.outgoing.empty();
-
-            if(noIncoming && noOutcoming)
-                return true;
-
-            if(noOutcoming)
-                ++onlyOutgoing;
-            if(noIncoming)
-                ++onlyIncoming;
-        }
-        return onlyOutgoing > 1 || onlyIncoming > 1;
+        return covered != solution_mask;
     }
 
     struct state_cache_entry {
