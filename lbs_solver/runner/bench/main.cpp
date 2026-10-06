@@ -1,6 +1,5 @@
 #include "gpt_runner.hpp"
 #include "percentile_reporter.hpp"
-#include "puzzles.hpp"
 
 #include "solver/solver.hpp"
 
@@ -8,25 +7,20 @@
 #include <cth/io/file.hpp>
 
 #include <algorithm>
-#include <charconv>
 #include <cstddef>
 #include <format>
-#include <optional>
+#include <fstream>
 #include <print>
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace lbs::bench {
 
 constexpr std::string_view WORD_LIST_PATH = "assets/words_easy.txt";
-
-struct options {
-    size_t random = 300;
-    size_t constructed = 100;
-    unsigned seed = 42;
-};
+constexpr std::string_view PUZZLES_PATH = "assets/nyt_puzzles.txt";
 
 struct word_list {
     std::vector<std::byte> data;
@@ -35,34 +29,12 @@ struct word_list {
 };
 
 struct puzzle {
+    std::string date;
     std::string letters;
     std::string group;
     compression_index_t compressionIndex;
     words_data wordsData;
 };
-
-[[nodiscard]] std::optional<options> parse_options(int argc, char** argv) {
-    options out{};
-
-    for(int i = 1; i < argc; i++) {
-        std::string_view const arg = argv[i];
-
-        auto const parse = [arg](std::string_view flag, auto& value) {
-            if(!arg.starts_with(flag))
-                return false;
-
-            auto const number = arg.substr(flag.size());
-            auto const [ptr, ec] = std::from_chars(number.data(), number.data() + number.size(), value);
-            return ec == std::errc{} && ptr == number.data() + number.size();
-        };
-
-        if(!parse("--random=", out.random) && !parse("--constructed=", out.constructed) && !parse("--seed=", out.seed)) {
-            std::println(stderr, "unrecognized argument: {}", arg);
-            return std::nullopt;
-        }
-    }
-    return out;
-}
 
 [[nodiscard]] word_list load_word_list() {
     auto data = cth::io::file::read<std::byte>(WORD_LIST_PATH);
@@ -71,17 +43,17 @@ struct puzzle {
     return {std::move(data), csv, std::move(splits)};
 }
 
-[[nodiscard]] std::vector<std::string_view> word_views(word_list const& list) {
-    std::vector<std::string_view> words{};
-    words.reserve(list.splits.size() + 1);
+/**
+ * reads the puzzles, one `<date> <letters>` per line
+ */
+[[nodiscard]] std::vector<std::pair<std::string, std::string>> load_puzzles() {
+    std::ifstream file{std::string{PUZZLES_PATH}};
 
-    size_t begin = 0;
-    for(auto const end : list.splits) {
-        words.push_back(list.csv.substr(begin, end - begin));
-        begin = end + 1;
-    }
-    words.push_back(list.csv.substr(begin));
-    return words;
+    std::vector<std::pair<std::string, std::string>> puzzles{};
+    std::string date, letters;
+    while(file >> date >> letters)
+        puzzles.emplace_back(std::move(date), std::move(letters));
+    return puzzles;
 }
 
 void register_benchmarks(std::span<puzzle const> puzzles, word_list const& list) {
@@ -103,7 +75,7 @@ void register_benchmarks(std::span<puzzle const> puzzles, word_list const& list)
     });
 
     for(auto const& p : puzzles) {
-        auto const name = [&p](std::string_view family) { return std::format("{}/{}/{}", family, p.group, p.letters); };
+        auto const name = [&p](std::string_view family) { return std::format("{}/{}/{}", family, p.group, p.date); };
 
         benchmark::RegisterBenchmark(name("lbs/filter_and_hash"), [&p, csv, &splits](benchmark::State& state) {
             for(auto _ : state) {
@@ -160,40 +132,33 @@ int main(int argc, char** argv) {
 
     auto argCount = static_cast<int>(args.size());
     benchmark::Initialize(&argCount, args.data());
+    if(benchmark::ReportUnrecognizedArguments(argCount, args.data()))
+        return 1;
     benchmark::SetDefaultTimeUnit(benchmark::kMicrosecond);
 
-    auto const options = parse_options(argCount, args.data());
-    if(!options)
-        return 1;
-
     auto const list = load_word_list();
-    auto const words = word_views(list);
-    puzzle_generator generator{words, options->seed};
 
     std::vector<puzzle> puzzles{};
     LetterBoxedSolver gpt{};
     size_t disagreements = 0;
-    size_t unsolvedConstructed = 0;
 
-    auto const add = [&](std::string letters, bool constructed) {
+    for(auto& [date, letters] : load_puzzles()) {
         auto const index = lbs::gen_compression_index(letters);
         auto wordsData = lbs::filter_and_hash(index, list.csv, list.splits);
 
         bool const solvable = !lbs::solve(index, wordsData.words, wordsData.wordHashes).empty();
         disagreements += solvable == gpt.run(letters, WORD_LIST_PATH).empty();
-        unsolvedConstructed += constructed && !solvable;
 
-        std::string group = constructed ? "constructed" : solvable ? "random_solvable" : "random_unsolvable";
-        puzzles.emplace_back(std::move(letters), std::move(group), index, std::move(wordsData));
-    };
+        std::string group = solvable ? "solvable" : "unsolvable";
+        puzzles.emplace_back(std::move(date), std::move(letters), std::move(group), index, std::move(wordsData));
+    }
 
-    for(size_t i = 0; i < options->constructed; i++)
-        add(generator.constructed(), true);
-    for(size_t i = 0; i < options->random; i++)
-        add(generator.random(), false);
-
-    if(disagreements != 0 || unsolvedConstructed != 0) {
-        std::println(stderr, "lbs and gpt disagree on {} puzzles, lbs missed {} constructed puzzles", disagreements, unsolvedConstructed);
+    if(puzzles.empty()) {
+        std::println(stderr, "no puzzles in {}", PUZZLES_PATH);
+        return 1;
+    }
+    if(disagreements != 0) {
+        std::println(stderr, "lbs and gpt disagree on {} puzzles", disagreements);
         return 1;
     }
 
@@ -201,10 +166,10 @@ int main(int argc, char** argv) {
     register_benchmarks(puzzles, list);
 
     std::println(
-        "puzzles: {} constructed, {} random (seed {}), word list: {}",
-        options->constructed,
-        options->random,
-        options->seed,
+        "puzzles: {} nyt ({} to {}), word list: {}",
+        puzzles.size(),
+        std::ranges::min(puzzles, {}, &puzzle::date).date,
+        std::ranges::max(puzzles, {}, &puzzle::date).date,
         WORD_LIST_PATH
     );
 
