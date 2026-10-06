@@ -3,8 +3,12 @@
 #include "index.hpp"
 #include "util.hpp"
 
+#include <cth/string/format.hpp>
+
 #include <array>
+#include <cstdint>
 #include <functional>
+#include <optional>
 #include <ranges>
 #include <string_view>
 #include <vector>
@@ -17,14 +21,26 @@ struct word_edge {
     char_mask_t wordHash;
     node const* to;
 
-    std::vector<size_t> wordIndices{};
+    std::vector<size_t> wordVariantIdxs{};
 };
 
 struct node {
-    std::vector<word_edge> outgoing;
     size_t compressedIdx;
-    size_t incoming;
+    std::vector<word_edge> outgoing{};
 };
+
+using word_variants_t = std::vector<std::string_view>;
+
+struct solution_t {
+    std::vector<word_variants_t> chain;
+};
+
+}
+
+CTH_FORMAT_CLASS_CUSTOM(lbs::solution_t, "{}", [](lbs::solution_t const& solution) {return solution.chain;});
+
+
+namespace lbs {
 
 
 namespace dev {
@@ -33,8 +49,8 @@ namespace dev {
     [[nodiscard]] constexpr node router_node(nodes_view_t nodes) {
         node router{};
         router.outgoing.reserve(nodes.size());
-        for(size_t i = 0; i < nodes.size(); i++)
-            router.outgoing.emplace_back(char_mask_t{}, &nodes[i]);
+        for(auto const& node : nodes)
+            router.outgoing.emplace_back(char_mask_t{}, &node);
 
         return router;
     }
@@ -42,7 +58,7 @@ namespace dev {
     /**
      * checks if the words can cover the solution
      * @param nodes word nodes
-     * @return  if no solution
+     * @return `true` if no solution
      */
     [[nodiscard]] constexpr bool early_terminate_instance(nodes_view_t nodes) {
         char_mask_t covered{};
@@ -66,7 +82,6 @@ namespace dev {
         node const& router,
         nodes_view_t nodes
     ) {
-
         // no solution
         if(early_terminate_instance(nodes))
             return {};
@@ -80,13 +95,17 @@ namespace dev {
 
         // +1 bc of router
 
-        for(size_t depth = MIN_SOLUTION_SIZE + 1; depth <= MAX_SEARCH_SIZE + 1 && solutions.size() < MAX_SOLUTIONS; depth++) {
+        for(size_t depth = MIN_SOLUTION_SIZE + 1; depth <= MAX_SEARCH_SIZE + 1 && solutions.size() <
+            MAX_SOLUTIONS; depth++) {
             dfs(
                 router,
                 [](node const& node) -> std::vector<word_edge> const& { return node.outgoing; },
                 [](word_edge const& edge) -> node const& { return *edge.to; },
                 char_mask_t{0},
-                [&stateDepthCache, &solutions, depth](char_mask_t prev, auto&& ptr_rng) -> std::optional<char_mask_t> {
+                [&stateDepthCache, &solutions, depth](
+                char_mask_t prev,
+                auto&& ptr_rng
+            ) -> std::optional<char_mask_t> {
                     auto const pathSize = std::ranges::size(ptr_rng);
                     // edge from router doesn't count
                     if(pathSize <= 1)
@@ -109,7 +128,7 @@ namespace dev {
 
 
                     auto const nextIdx = lastEdge->to->compressedIdx;
-                    size_t cacheHash = nextIdx * MAX_STATES + compress_hash(pathHash, nextIdx);
+                    size_t const cacheHash = nextIdx * MAX_STATES + compress_hash(pathHash, nextIdx);
 
 
                     auto& [depthCeiling, creationDepth] = stateDepthCache[cacheHash];
@@ -131,7 +150,75 @@ namespace dev {
 }
 
 
+/**
+ * traces the solutions from the raw solve
+ * @param words initial word index
+ * @param rawSolutions traversable graph
+ * @return solutions with optionally multiple variants as words
+ */
+[[nodiscard]] constexpr auto trace_solutions(
+    std::span<std::string_view const> words,
+    std::vector<std::vector<word_edge const*>> rawSolutions
+) {
+    std::vector<solution_t> solutions{};
 
+    for(auto& rawSolution : rawSolutions) {
+        auto& solutionChain = solutions.emplace_back().chain;
+
+        solutionChain.reserve(rawSolution.size() - 1);
+        // drop 1 bc of router
+        for(auto const& edge : rawSolution | std::views::drop(1)) {
+            auto& variantIdxs = edge->wordVariantIdxs;
+            auto& wordVariants = solutionChain.emplace_back();
+
+            wordVariants.reserve(variantIdxs.size());
+            for(auto& wordIdx : variantIdxs)
+                wordVariants.emplace_back(words[wordIdx]);
+        }
+    }
+    return solutions;
+}
+
+/**
+ * init nodes with their compressed index
+ */
+[[nodiscard]] constexpr std::array<node, BOX_CHARS> init_nodes() {
+    std::array<node, BOX_CHARS> nodes{};
+    for(size_t i = 0; i < nodes.size(); i++)
+        nodes[i].compressedIdx = i;
+    return nodes;
+}
+
+/**
+ * builds the node graph
+ * @details deduplicates equivalent words (equal to, from, mask)
+ */
+constexpr void build_graph(
+    compression_index_t const& compression_index,
+    std::span<std::string_view const> words,
+    std::span<char_mask_t const> word_hashes,
+    std::array<node, BOX_CHARS>& nodes
+) {
+    auto node_at = [&nodes, &compression_index](char c) { return &nodes[compression_index[idx(c)]]; };
+
+    for(size_t i = 0; i < words.size(); i++) {
+        auto const& w = words[i];
+        auto* to = node_at(w.back());
+        auto const& hash = word_hashes[i];
+
+        auto& prevOutgoing = node_at(w.front())->outgoing;
+
+        auto foundIt = std::ranges::find_if(
+            prevOutgoing,
+            [hash, to](word_edge const& e) { return e.wordHash == hash && e.to == to; }
+        );
+
+        if(foundIt == prevOutgoing.end())
+            prevOutgoing.emplace_back(hash, to, std::vector{i});
+        else
+            foundIt->wordVariantIdxs.emplace_back(i);
+    }
+}
 /**
  * solves the letter boxed problem
  * @param compression_index of allowed characters
@@ -139,7 +226,7 @@ namespace dev {
  * @param word_hashes for words (character masks)
  * @return chain of words to use
  */
-[[nodiscard]] constexpr std::vector<std::vector<std::vector<std::string_view>>> solve(
+[[nodiscard]] constexpr std::vector<solution_t> solve(
     compression_index_t const& compression_index,
     std::span<std::string_view const> words,
     std::span<char_mask_t const> word_hashes
@@ -147,55 +234,14 @@ namespace dev {
     CTH_CRITICAL(words.size() != word_hashes.size(), "hashes must match words") {}
 
 
-    std::array<node, BOX_CHARS> nodes{};
-    auto node_at = [&nodes, &compression_index](char c) {
-        return &nodes[compression_index[idx(c)]];
-    };
-    for(size_t i = 0; i < nodes.size(); i++)
-        nodes[i].compressedIdx = i;
+    auto nodes = init_nodes();
 
-    for(size_t i = 0; i < words.size(); i++) {
-        auto const& w = words[i];
-        auto* to = node_at(w.back());
-        auto const& hash = word_hashes[i];
-
-        auto& outgoing = node_at(w.front())->outgoing;
-
-        auto foundIt = std::ranges::find_if(
-            outgoing,
-            [hash, to](word_edge const& e) {
-                return e.wordHash == hash && e.to == to;
-            }
-        );
-
-        if(foundIt == outgoing.end()) {
-            outgoing.emplace_back(hash, to, std::vector{i});
-            ++to->incoming;
-        }
-        else
-            foundIt->wordIndices.emplace_back(i);
-    }
+    build_graph(compression_index, words, word_hashes, nodes);
 
     auto const routerNode = dev::router_node(nodes);
     auto rawSolutions = dev::solve_raw(routerNode, nodes);
 
-    std::vector<std::vector<std::vector<std::string_view>>> solutions{};
-
-
-    // trace solutions
-    for(auto& rawSolution : rawSolutions) {
-        auto& solution = solutions.emplace_back();
-        solution.reserve(rawSolution.size() - 1);
-        // drop 1 bc of router
-        for(auto const& edge : rawSolution | std::views::drop(1)) {
-            auto& indices = edge->wordIndices;
-            auto& pathWords = solution.emplace_back();
-            pathWords.reserve(indices.size());
-            for(auto& wordIdx : indices)
-                pathWords.emplace_back(words[wordIdx]);
-        }
-    }
+    auto solutions = trace_solutions(words, std::move(rawSolutions));
     return solutions;
-
 }
 }
