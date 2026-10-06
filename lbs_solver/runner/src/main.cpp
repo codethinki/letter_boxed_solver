@@ -33,10 +33,6 @@ word_list_t dyn_load(std::string_view word_list_path) {
     return {csv, std::move(splits), std::move(data)};
 }
 
-constexpr word_list_t precompute_word_list(std::string_view csv) {
-    return {csv, split(csv, ',')};
-}
-
 void solve_timed(std::string_view characters, std::string_view csv, std::span<size_t const> splits) {
     auto const startFiltering = clock::now();
     auto const compressionIndex = gen_compression_index(characters);
@@ -65,71 +61,71 @@ void solve_timed(std::string_view characters, std::string_view csv, std::span<si
 #define STATIC_WORD_LIST_PATH_DEF "../assets/words_easy.txt"
 
 
-namespace lbs {
-
-
+namespace {
 #ifdef __has_embed
-namespace dev {
-    constexpr char raw_word_list[] = {
+    namespace dev {
+        constexpr char raw_word_list[] = {
 #embed STATIC_WORD_LIST_PATH_DEF
-    };
-}
+        };
+    }
 
-constexpr std::string_view WORD_LIST_CSV{dev::raw_word_list, sizeof(dev::raw_word_list)};
+    constexpr std::string_view WORD_LIST_CSV{dev::raw_word_list, sizeof(dev::raw_word_list)};
 
-void solve_manual(std::string_view characters) {
-    constexpr auto splits = cth::dt::as_cxpr_array<[] { return lbs::split(WORD_LIST_CSV, ','); }>();
+    void solve_manual(std::string_view characters) {
+        constexpr auto splits = cth::dt::as_cxpr_array<[] { return lbs::split(WORD_LIST_CSV, ','); }>();
 
-    lbs::solve_timed(characters, WORD_LIST_CSV, splits);
-}
+        lbs::solve_timed(characters, WORD_LIST_CSV, splits);
+    }
 #else
-constexpr std::string_view WORD_LIST_PATH{DYNAMIC_WORD_LIST_PATH_DEF};
+    constexpr std::string_view WORD_LIST_PATH{DYNAMIC_WORD_LIST_PATH_DEF};
 
-void solve_manual(std::string_view characters) {
-    auto const wordList = lbs::dyn_load(WORD_LIST_PATH);
+    void solve_manual(std::string_view characters) {
+        auto const wordList = lbs::dyn_load(WORD_LIST_PATH);
 
-    lbs::solve_timed(characters, wordList.csv, wordList.splits);
-}
+        lbs::solve_timed(characters, wordList.csv, wordList.splits);
+    }
 #endif
-}
 
 
-[[nodiscard]] std::string read_sides() {
-    std::vector<std::string> sides{};
-    sides.reserve(lbs::SIDES);
 
-    while(true) {
-        for(size_t i = 0; i < lbs::SIDES; i++) {
-            std::println("enter side {}", i);
-            std::cin >> sides.emplace_back();
+    [[nodiscard]] std::string read_sides() {
+        std::vector<std::string> sides{};
+        sides.reserve(lbs::SIDES);
 
-            if(sides.back().size() != lbs::CHARS_PER_SIDE) {
-                sides.clear();
-                break;
+        while(true) {
+            for(size_t i = 0; i < lbs::SIDES; i++) {
+                std::println("enter side {}", i);
+                std::cin >> sides.emplace_back();
+
+                if(sides.back().size() != lbs::CHARS_PER_SIDE) {
+                    sides.clear();
+                    break;
+                }
             }
+
+            if(sides.size() == lbs::SIDES)
+                return {std::from_range, sides | std::views::join};
+
+            sides.clear();
+            std::println("invalid, try again");
         }
+    }
 
-        if(sides.size() == lbs::SIDES)
-            return {std::from_range, sides | std::views::join};
 
-        sides.clear();
-        std::println("invalid, try again");
+    //void solve_gpt(std::string_view, std::string_view);
+    void pause() {
+        std::cout << "Press Enter to continue . . ." << std::flush;
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        std::cin.get();
     }
 }
 
 
-//void solve_gpt(std::string_view, std::string_view);
-void pause() {
-    std::cout << "Press Enter to continue . . ." << std::flush;
-    std::cin.clear();
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    std::cin.get();
-}
-
 int main() {
     auto const sides = read_sides();
 
-    lbs::solve_manual(sides);
+    solve_manual(sides);
 
     std::println();
     pause();
