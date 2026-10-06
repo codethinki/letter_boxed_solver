@@ -25,7 +25,7 @@ constexpr std::string_view PUZZLES_PATH = "assets/nyt_puzzles.txt";
 struct word_list {
     std::vector<std::byte> data;
     std::string_view csv;
-    std::vector<size_t> splits;
+    std::vector<size_t> wordEnds;
 };
 
 struct puzzle {
@@ -39,8 +39,8 @@ struct puzzle {
 [[nodiscard]] word_list load_word_list() {
     auto data = cth::io::file::read<std::byte>(WORD_LIST_PATH);
     std::string_view const csv{reinterpret_cast<char const*>(data.data()), data.size()};
-    auto splits = split(csv, ',');
-    return {std::move(data), csv, std::move(splits)};
+    auto wordEnds = word_ends(csv, ',');
+    return {std::move(data), csv, std::move(wordEnds)};
 }
 
 /**
@@ -58,7 +58,7 @@ struct puzzle {
 
 void register_benchmarks(std::span<puzzle const> puzzles, word_list const& list) {
     auto const csv = list.csv;
-    auto const& splits = list.splits;
+    auto const& wordEnds = list.wordEnds;
 
     benchmark::RegisterBenchmark("lbs/load/word_list/words_easy", [](benchmark::State& state) {
         for(auto _ : state) {
@@ -67,20 +67,20 @@ void register_benchmarks(std::span<puzzle const> puzzles, word_list const& list)
         }
     });
 
-    benchmark::RegisterBenchmark("lbs/split/word_list/words_easy", [csv](benchmark::State& state) {
+    benchmark::RegisterBenchmark("lbs/word_ends/word_list/words_easy", [csv](benchmark::State& state) {
         for(auto _ : state) {
-            auto splits = split(csv, ',');
-            benchmark::DoNotOptimize(splits);
+            auto wordEnds = word_ends(csv, ',');
+            benchmark::DoNotOptimize(wordEnds);
         }
     });
 
     for(auto const& p : puzzles) {
         auto const name = [&p](std::string_view family) { return std::format("{}/{}/{}", family, p.group, p.date); };
 
-        benchmark::RegisterBenchmark(name("lbs/filter_and_hash"), [&p, csv, &splits](benchmark::State& state) {
+        benchmark::RegisterBenchmark(name("lbs/filter_and_hash"), [&p, csv, &wordEnds](benchmark::State& state) {
             for(auto _ : state) {
                 auto const index = gen_compression_index(p.letters);
-                auto wordsData = filter_and_hash(index, csv, splits);
+                auto wordsData = filter_and_hash(index, csv, wordEnds);
                 benchmark::DoNotOptimize(wordsData);
             }
         });
@@ -92,10 +92,10 @@ void register_benchmarks(std::span<puzzle const> puzzles, word_list const& list)
             }
         });
 
-        benchmark::RegisterBenchmark(name("lbs/total"), [&p, csv, &splits](benchmark::State& state) {
+        benchmark::RegisterBenchmark(name("lbs/total"), [&p, csv, &wordEnds](benchmark::State& state) {
             for(auto _ : state) {
                 auto const index = gen_compression_index(p.letters);
-                auto const& [words, wordHashes] = filter_and_hash(index, csv, splits);
+                auto const& [words, wordHashes] = filter_and_hash(index, csv, wordEnds);
                 auto solutions = solve(index, words, wordHashes);
                 benchmark::DoNotOptimize(solutions);
             }
@@ -105,7 +105,7 @@ void register_benchmarks(std::span<puzzle const> puzzles, word_list const& list)
             for(auto _ : state) {
                 auto const list = load_word_list();
                 auto const index = gen_compression_index(p.letters);
-                auto const& [words, wordHashes] = filter_and_hash(index, list.csv, list.splits);
+                auto const& [words, wordHashes] = filter_and_hash(index, list.csv, list.wordEnds);
                 auto solutions = solve(index, words, wordHashes);
                 benchmark::DoNotOptimize(solutions);
             }
@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
 
     for(auto& [date, letters] : load_puzzles()) {
         auto const index = lbs::gen_compression_index(letters);
-        auto wordsData = lbs::filter_and_hash(index, list.csv, list.splits);
+        auto wordsData = lbs::filter_and_hash(index, list.csv, list.wordEnds);
 
         bool const solvable = !lbs::solve(index, wordsData.words, wordsData.wordHashes).empty();
         disagreements += solvable == gpt.run(letters, WORD_LIST_PATH).empty();
