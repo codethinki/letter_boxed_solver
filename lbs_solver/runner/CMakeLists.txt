@@ -11,3 +11,14 @@ target_include_directories(
 target_link_libraries(lbs_solver_runner PRIVATE lbs_solver::solver)
 
 cth_target_set_constexpr_steps(lbs_solver_runner 1000000000)
+
+cth_glob_cpp(SOLVER_BENCH_SRC "bench")
+
+add_executable(lbs_solver_bench ${SOLVER_BENCH_SRC})
+cth_add_resources(lbs_solver_bench "assets/")
+
+cth_target_enable_build_cache(lbs_solver_bench OPTIONAL)
+
+find_package(benchmark CONFIG REQUIRED)
+
+target_link_libraries(lbs_solver_bench PRIVATE lbs_solver::solver benchmark::benchmark)
