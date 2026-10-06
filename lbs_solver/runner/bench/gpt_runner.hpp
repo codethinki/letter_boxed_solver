@@ -5,43 +5,34 @@
 #include <string_view>
 #include <algorithm>
 #include <chrono>
-#include <windows.h>
+#include <cstdint>
+#include <fstream>
 
 class LetterBoxedSolver {
 private:
-    // Lightweight Windows Memory-Mapped File Wrapper
+    // Portable file wrapper (originally a Windows memory-mapped file)
     struct MappedFile {
-        HANDLE file = INVALID_HANDLE_VALUE;
-        HANDLE mapping = NULL;
+        std::string buffer;
         const char* data = nullptr;
         size_t size = 0;
 
         bool open(const std::string& path) {
-            file = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, 
-                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-            if (file == INVALID_HANDLE_VALUE) return false;
-            
-            LARGE_INTEGER fileSize;
-            if (!GetFileSizeEx(file, &fileSize)) {
-                close();
-                return false;
-            }
-            size = static_cast<size_t>(fileSize.QuadPart);
-            
-            mapping = CreateFileMappingA(file, NULL, PAGE_READONLY, 0, 0, NULL);
-            if (!mapping) {
-                close();
-                return false;
-            }
-            
-            data = static_cast<const char*>(MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0));
-            return data != nullptr;
+            std::ifstream file(path, std::ios::binary | std::ios::ate);
+            if (!file) return false;
+
+            buffer.resize(static_cast<size_t>(file.tellg()));
+            file.seekg(0);
+            if (!file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()))) return false;
+
+            data = buffer.data();
+            size = buffer.size();
+            return true;
         }
 
         void close() {
-            if (data) { UnmapViewOfFile(data); data = nullptr; }
-            if (mapping) { CloseHandle(mapping); mapping = NULL; }
-            if (file != INVALID_HANDLE_VALUE) { CloseHandle(file); file = INVALID_HANDLE_VALUE; }
+            buffer.clear();
+            data = nullptr;
+            size = 0;
         }
 
         ~MappedFile() { close(); }
