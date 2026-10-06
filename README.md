@@ -1,3 +1,5 @@
+[![Build & Test](https://github.com/codethinki/letter_boxed_solver/actions/workflows/build-test.yml/badge.svg)](https://github.com/codethinki/letter_boxed_solver/actions/workflows/build-test.yml)
+
 # letter_boxed_solver
 ## introduction
 solves the game
@@ -22,8 +24,17 @@ on an intel 11th gen it solves it in `< 4ms`, constexpr word list `< 2.5ms`
 - contains settings.hpp with some constants e.g. max solution count
 
 ### requirements
-- c++ 23 with #embed support
-- cth library "install" path specified in the CMakePresets.json (default: `${ProjectDir}../cth/out/install/`
+- c++ 23, uses #embed when supported (otherwise the word list is loaded at runtime)
+- cmake 4.1+, ninja
+- [vcpkg](https://github.com/microsoft/vcpkg) with `VCPKG_ROOT` set
+- cth is included as package in `lib/cth`
+
+```bash
+git clone --recursive https://github.com/codethinki/letter_boxed_solver.git
+cd letter_boxed_solver
+cmake --preset gcc_release
+cmake --build out/build/gcc_release
+```
 
 
 

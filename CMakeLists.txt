@@ -13,18 +13,16 @@ cth_set_compiler_specifics()
 cth_set_latest_c_cpp_standard()
 set(CMAKE_CXX_SCAN_FOR_MODULES FALSE)
 
-set(CMAKE_C_COMPILER_LAUNCHER "buildcache")
-set(CMAKE_CXX_COMPILER_LAUNCHER "buildcache")
-
-
-# subprojects
-add_subdirectory(lbs_solver)
+set(cth_ROOT "${PROJECT_SOURCE_DIR}/lib/cth")
 
 # test
 if(LBS_ENABLE_TESTS)
 	message(STATUS "enabled testing")
 	enable_testing()
 endif()
+
+# subprojects
+add_subdirectory(lbs_solver)
 
 # formatting
 cth_glob_cpp(

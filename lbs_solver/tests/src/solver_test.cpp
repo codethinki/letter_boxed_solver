@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include <cth/win/io.hpp>
+#include <cth/io/file.hpp>
 #include <print>
 
 #include <chrono>
@@ -17,7 +17,7 @@ TEST(solver, real_world) {
     using fms = std::chrono::duration<double, std::milli>;
 
     auto const startLoad = clock::now();
-    auto const data = cth::win::io::read_unbuffered("assets/words_easy.txt");
+    auto const data = cth::io::file::read<std::byte>("assets/words_easy.txt");
     auto const endLoad = clock::now();
 
     auto const startSplit = clock::now();
@@ -41,6 +41,17 @@ TEST(solver, real_world) {
     std::println("split words in {}", fms{endSplit - startSplit});
     std::println("indexed in {}", fms{endFiltering - startFiltering});
     std::println("solved in {}", fms{endSolve - startSolve});
+}
+
+TEST(solver, letters_only_inside_words) {
+    auto const data = cth::io::file::read<std::byte>("assets/words_easy.txt");
+    std::string_view const csv{reinterpret_cast<char const*>(data.data()), data.size()};
+    auto const splits = split(csv, ',');
+
+    auto const compressionIndex = gen_compression_index("ancgwuytsvoq");
+    auto const& [words, wordHashes] = filter_and_hash(compressionIndex, csv, splits);
+
+    EXPECT_FALSE(solve(compressionIndex, words, wordHashes).empty());
 }
 
 } // namespace lbs
